@@ -85,7 +85,7 @@ def show_balances(message):
     
     msg = (
         f"ℹ️ **ТЕКУЩИЕ НАКОПЛЕНИЯ В КОПИЛКАХ:**\n\n"
-        f"🛡️badge Конверт «Стабфонд»: **{stab:,.2f} ₽**\n"
+        f"🛡️ Конверт «Стабфонд»: **{stab:,.2f} ₽**\n"
         f"🎉 Конверт «Праздники» (накоплено всего): **{hol:,.2f} ₽**\n"
         f"📅 План расходов на текущий месяц: **{month_target:,.2f} ₽**"
     )
@@ -243,174 +243,130 @@ def process_cash(message):
                 f"🪦 Конверт «Памятники»: **{monuments:,.0f} ₽**\n"
                 f"🛡️ Конверт «Стабфонд» (начислено): **{stabfond:,.0f} ₽**"
             )
+            
             markup = types.InlineKeyboardMarkup()
             btn = types.InlineKeyboardButton("Внесено в Стабфонд ✅", callback_data=f"add_{stabfond}_{holidays}")
             markup.add(btn)
             bot.send_message(message.chat.id, report, reply_markup=markup, parse_mode='Markdown')
+            
     except Exception as e:
         bot.send_message(message.chat.id, "❌ Произошла ошибка при расчете.")
 
-health -= rem_deficit * (health / sum_funds)
-wife_cash = 55000.0
-report = (
-f"📊 РАСЧЕТ ОСНОВНОГО ДОХОДА ({income:,.0f} ₽)\n"
-f"⚙️ Режим твоей доли: {mode_name}\n\n"
-f"💵 Наличные (От продаж):\n"
-f"└ 👩 Жене наличными (60%): {wife_cash:,.0f} ₽\n"
-f"└ 🧔 Твоя чистая доля (40%): {c7:,.0f} ₽\n\n"
-f"🗂 Распределение по твоим конвертам:"
-f"🛍 Конверт «Карман»: {pocket:,.0f} ₽\n"
-f"🏎 Конверт «Драйв»: {drive:,.0f} ₽\n"
-f"🎉 Фонд праздников: {holidays:,.0f} ₽\n"
-f"🩺 Конверт «Здоровье»: {health:,.0f} ₽\n"
-f"🚗 Автофонд: {auto:,.0f} ₽\n"
-f"🎒 Мася школа: {masya_school:,.0f} ₽\n"
-f"🏦 Конверт «Подушка»: {cushion:,.0f} ₽\n"
-f"🪦 Конверт «Памятники»: {monuments:,.0f} ₽\n"
-f"🛡️ Конверт «Стабфонд» (начислено): {stabfond:,.0f} ₽"
-)
-markup = types.InlineKeyboardMarkup()
-btn = types.InlineKeyboardButton("Внесено в Стабфонд ✅", callback_data=f"add_{stabfond}_{holidays}")
-markup.add(btn)
-bot.send_message(message.chat.id, report, reply_markup=markup, parse_mode='Markdown')
-    except Exception as e:
-        bot.send_message(message.chat.id, "❌ Произошла ошибка при расчете.")
-
-
-
-=====================================================================
-
-БЛОК ПОДРАБОТОК
-
-=====================================================================
-
+# =====================================================================
+# БЛОК ПОДРАБОТОК
+# =====================================================================
 @bot.message_handler(func=lambda m: m.text == "🚀 Подработка")
 def ask_side(message):
-msg = bot.send_message(message.chat.id, "🚀 Отлично! Введите сумму случайной подработки:")
-bot.register_next_step_handler(msg, process_side)
+    msg = bot.send_message(message.chat.id, "🚀 Отлично! Введите сумму случайной подработки:")
+    bot.register_next_step_handler(msg, process_side)
 
 def process_side(message):
-try:
-e2 = float(message.text.strip())
+    try:
+        e2 = float(message.text.strip())
+        
+        if e2 <= 2000:
+            level_name = "🌱 Микро (до 2к)"
+            p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion, p_stab = 0.50, 0.20, 0.15, 0.05, 0.02, 0.02, 0.01
+        elif e2 <= 5000:
+            level_name = "📈 Стандарт (2к - 5к)"
+            p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion, p_stab = 0.45, 0.15, 0.20, 0.10, 0.03, 0.04, 0.03
+        elif e2 <= 8000:
+            level_name = "🚀 Профи (5к - 8к)"
+            p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion, p_stab = 0.45, 0.15, 0.20, 0.12, 0.03, 0.03, 0.02
+        else:
+            level_name = "🔥 Турбо-Досрочка (Выше 8к)"
+            p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion, p_stab = 0.50, 0.15, 0.15, 0.12, 0.03, 0.03, 0.02
 
-if e2 <= 2000:
-level_name = "🌱 Микро (до 2к)"
-p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion, p_stab = 0.50, 0.20, 0.15, 0.05, 0.02, 0.02, 0.01
-elif e2 <= 5000:
-level_name = "📈 Стандарт (2к - 5к)"
-p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion, p_stab = 0.45, 0.15, 0.20,
-0.10, 0.03, 0.04, 0.03
-elif e2 <= 8000:
-level_name = "🚀 Профи (5к - 8к)"
-p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion, p_stab = 0.45, 0.15, 0.20,
-0.12, 0.03, 0.03, 0.02
-else:level_name = "🔥 Турбо-Досрочка (Выше 8к)"
-p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion, p_stab = 0.50, 0.15, 0.15,
-0.12, 0.03, 0.03, 0.02
+        pocket = e2 * p_pocket
+        drive = e2 * p_drive
+        credit = e2 * p_credit
+        school = e2 * p_school
+        holidays = e2 * p_holidays
+        cushion = e2 * p_cushion
+        stab = e2 * p_stab
 
-pocket = e2 * p_pocket
-drive = e2 * p_drive
-credit = e2 * p_credit
-school = e2 * p_school
-holidays = e2 * p_holidays
-cushion = e2 * p_cushion
-stab = e2 * p_stab
+        report = (
+            f"🚀 **РАСЧЕТ ПОДРАБОТКИ ({e2:,.0f} ₽)**\n"
+            f"⚡ Уровень дохода: `{level_name}`\n\n"
+            f"📉 **ДОСРОЧКА КРЕДИТА:** **{credit:,.0f} ₽** 🔥 *(сразу гаси долг!)*\n\n"
+            f"🗂 **В твои конверты:**\n"
+            f"🛍 Конверт «Карман»: **{pocket:,.0f} ₽**\n"
+            f"🏎 Конверт «Драйв»: **{drive:,.0f} ₽**\n"
+            f"🎒 Конверт «Мася школа»: **{school:,.0f} ₽**\n"
+            f"🎉 Фонд праздников: **{holidays:,.0f} ₽**\n"
+            f"🏦 Конверт «Подушка»: **{cushion:,.0f} ₽**\n"
+            f"🛡️ Конверт «Стабфонд» (начислено): **{stab:,.0f} ₽**"
+        )
+        
+        markup = types.InlineKeyboardMarkup()
+        btn = types.InlineKeyboardButton("Внесено в Стабфонд ✅", callback_data=f"add_{stab}_{holidays}")
+        markup.add(btn)
+        bot.send_message(message.chat.id, report, reply_markup=markup, parse_mode='Markdown')
+        
+    except ValueError:
+        bot.send_message(message.chat.id, "❌ Пожалуйста, введи только число.")
 
-report = (
-f"🚀 РАСЧЕТ ПОДРАБОТКИ ({e2:,.0f} ₽)\n"
-f"⚡ Уровень дохода: {level_name}\n\n"
-f"📉 ДОСРОЧКА КРЕДИТА: {credit:,.0f} ₽ 🔥 (сразу гаси долг!)\n\n"
-f"🗂 В твои конверты:\n"
-f"🛍 Конверт «Карман»: {pocket:,.0f} ₽\n"
-f"🏎 Конверт «Драйв»: {drive:,.0f} ₽\n"
-f"🎒 Конверт «Мася школа»: {school:,.0f} ₽\n"
-f"🎉 Фонд праздников: {holidays:,.0f} ₽\n"
-f"🏦 Конверт «Подушка»: {cushion:,.0f} ₽\n"
-f"🛡️ Конверт «Стабфонд» (начислено): {stab:,.0f} ₽"
-)
-
-markup = types.InlineKeyboardMarkup()
-btn = types.InlineKeyboardButton("Внесено в Стабфонд ✅", 
-callback_data=f"add_{stab}_{holidays}")
-markup.add(btn)
-bot.send_message(message.chat.id, report, reply_markup=markup, 
-parse_mode='Markdown')
-
-except ValueError:
-bot.send_message(message.chat.id, "❌ Пожалуйста, введи только число.")
-
-=====================================================================
-
-ОБРАБОТЧИК НАЖАТИЙ НА ИНЛАЙН-КНОПКИ
-
-=====================================================================
-
+# =====================================================================
+# ОБРАБОТЧИК НАЖАТИЙ НА ИНЛАЙН-КНОПКИ
+# =====================================================================
 @bot.callback_query_handler(func=lambda call: True)
 def callback_inline(call):
-try:
-current_stab = load_balance(STAB_FILE)
-current_holidays = load_balance(HOLIDAYS_FILE)
+    try:
+        current_stab = load_balance(STAB_FILE)
+        current_holidays = load_balance(HOLIDAYS_FILE)
+        
+        if call.data.startswith("add_"):
+            _, stab_add, hol_add = call.data.split("_")
+            new_stab = current_stab + float(stab_add)
+            new_hol = current_holidays + float(hol_add)
+            
+            save_balance(STAB_FILE, new_stab)
+            save_balance(HOLIDAYS_FILE, new_hol)
+            
+            bot.answer_callback_query(call.id, "Успешно сохранено!")
+            bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, 
+                                  text=call.message.text + f"\n\n🟢 **ФИЗИЧЕСКИЙ ВЗНОС ПОДТВЕРЖДЕН:**\n└ Стабфонд обновлен: **{new_stab:,.2f} ₽**\n└ Праздники обновлены: **{new_hol:,.2f} ₽**", parse_mode='Markdown')
 
-if call.data.startswith("add_"):
-, stab_add, hol_add = call.data.split("")
-new_stab = current_stab + float(stab_add)
-new_hol = current_holidays + float(hol_add)
+        elif call.data.startswith("savebase_"):
+            _, hol_add = call.data.split("_")
+            new_hol = current_holidays + float(hol_add)
+            save_balance(HOLIDAYS_FILE, new_hol)
+            
+            bot.answer_callback_query(call.id, "Сохранено!")
+            bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, 
+                                  text=call.message.text + f"\n\n🟢 **РАСКЛАДКА ПОДТВЕРЖДЕНА:**\n└ Копилка Праздников обновлена: **{new_hol:,.2f} ₽**", parse_mode='Markdown')
 
-save_balance(STAB_FILE, new_stab)
-save_balance(HOLIDAYS_FILE, new_hol)
+        elif call.data.startswith("sub_"):
+            _, total_sub, def_wife, def_pocket, def_hol = call.data.split("_")
+            total_sub = float(total_sub)
+            
+            if current_stab >= total_sub:
+                new_stab = current_stab - total_sub
+                new_hol = current_holidays + float(def_hol)
+                
+                save_balance(STAB_FILE, new_stab)
+                save_balance(HOLIDAYS_FILE, new_hol)
+                
+                bot.answer_callback_query(call.id, "Дефицит покрыт!")
+                bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, 
+                                      text=call.message.text + f"\n\n⚠️ **ДЕФИЦИТ ПОКРЫТ ИЗ СТАБФОНДА:**\n└ Списано из Стабфонда: **-{total_sub:,.2f} ₽**\n└ Остаток в Стабфонде: **{new_stab:,.2f} ₽**\n└ Добавлено жене и в Карман до нормы.\n└ Праздничный буфер обновлен: **{new_hol:,.2f} ₽**", parse_mode='Markdown')
+            else:
+                bot.answer_callback_query(call.id, "❌ Недостаточно средств в Стабфонде!", show_alert=True)
+    except:
+        pass
 
-bot.answer_callback_query(call.id, "Успешно сохранено!")
-bot.edit_message_text(chat_id=call.message.chat.id, 
-message_id=call.message.message_id,
-text=call.message.text + f"\n\n🟢 ФИЗИЧЕСКИЙ ВЗНОС ПОДТВЕРЖДЕН:\n└ 
-Стабфонд обновлен: {new_stab:,.2f} ₽\n└ Праздники обновлены: {new_hol:,.2f} ₽", parse_mode='Markdown')
-
-elif call.data.startswith("savebase_"):
-, hol_add = call.data.split("")
-new_hol = current_holidays + float(hol_add)
-save_balance(HOLIDAYS_FILE, new_hol)
-
-bot.answer_callback_query(call.id, "Сохранено!")
-bot.edit_message_text(chat_id=call.message.chat.id,
-message_id=call.message.message_id,
-text=call.message.text + f"\n\n🟢 РАСКЛАДКА ПОДТВЕРЖДЕНА:\n└ Копилка 
-Праздников обновлена: {new_hol:,.2f} ₽", parse_mode='Markdown')
-
-elif call.data.startswith("sub_"):
-, total_sub, def_wife, def_pocket, def_hol = call.data.split("")
-total_sub = float(total_sub)
-
-if current_stab >= total_sub:
-new_stab = current_stab - total_sub
-new_hol = current_holidays + float(def_hol)
-
-save_balance(STAB_FILE, new_stab)
-save_balance(HOLIDAYS_FILE, new_hol)
-
-bot.answer_callback_query(call.id, "Дефицит покрыт!")
-bot.edit_message_text(chat_id=call.message.chat.id,
-message_id=call.message.message_id,
-text=call.message.text + f"\n\n⚠️ ДЕФИЦИТ ПОКРЫТ ИЗ СТАБФОНДА:\n└ Списано из 
-Стабфонда: -{total_sub:,.2f} ₽\n└ Остаток в Стабфонде: {new_stab:,.2f} ₽\n└ 
-Добавлено жене и в Карман до нормы.\n└ Праздничный буфер обновлен: 
-{new_hol:,.2f} ₽", parse_mode='Markdown')
-else:
-bot.answer_callback_query(call.id, "❌ Недостаточно средств в Стабфонде!",
-show_alert=True)except:
-pass
-
-=====================================================================
-
-МАСКИРОВКА ПОД ВЕБ-СЕРВИС ДЛЯ RENDER
-
-=====================================================================
-
+# =====================================================================
+# МАСКИРОВКА ПОД ВЕБ-СЕРВИС ДЛЯ RENDER
+# =====================================================================
 app = Flask('')
+
 @app.route('/')
 def home():
-return "Бот работает!"
+    return "Бот работает!"
+
 def run_flask():
-app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
-if name == 'main':
-threading.Thread(target=run_flask).start()
-bot.infinity_polling()
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
+
+if __name__ == '__main__':
+    threading.Thread(target=run_flask).start()
+    bot.infinity_polling()
