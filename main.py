@@ -269,11 +269,11 @@ f"🏦 Конверт «Подушка»: {cushion:,.0f} ₽\n"
 f"🪦 Конверт «Памятники»: {monuments:,.0f} ₽\n"
 f"🛡️ Конверт «Стабфонд» (начислено): {stabfond:,.0f} ₽"
 )
-markup = types.InlineKeyboardMarkup()
-btn = types.InlineKeyboardButton("Внесено в Стабфонд ✅", callback_data=f"add_{stabfond}_{holidays}")
-markup.add(btn)
-bot.send_message(message.chat.id, report, reply_markup=markup, parse_mode='Markdown')
-except Exception as e:
+            markup = types.InlineKeyboardMarkup()
+            btn = types.InlineKeyboardButton("Внесено в Стабфонд ✅", callback_data=f"add_{stabfond}_{holidays}")
+            markup.add(btn)
+            bot.send_message(message.chat.id, report, reply_markup=markup, parse_mode='Markdown')
+    except Exception as e:
         bot.send_message(message.chat.id, "❌ Произошла ошибка при расчете.")
 
 =====================================================================
