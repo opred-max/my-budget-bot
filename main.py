@@ -290,8 +290,7 @@ bot.send_message(message.chat.id, "❌ Произошла ошибка при р
 
 @bot.message_handler(func=lambda m: m.text == "🚀 Подработка")
 def ask_side(message):
-msg = bot.send_message(message.chat.id, "🚀 Отлично! Введите сумму случайной 
-подработки:")
+msg = bot.send_message(message.chat.id, "🚀 Отлично! Введите сумму случайной подработки:")
 bot.register_next_step_handler(msg, process_side)
 
 def process_side(message):
