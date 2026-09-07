@@ -138,8 +138,7 @@ def process_cash(message):
                 total_allocated = pocket + drive + holidays + health + auto + cushion + masya_school + monuments
                 if total_allocated < c7:
                     pocket += (c7 - total_allocated)
-
-                        stab_avail = load_balance(STAB_FILE)
+                    stab_avail = load_balance(STAB_FILE)
             deficit_wife = max(0.0, 50000.0 - (income * 0.6)) if income * 0.6 < 50000.0 else 0.0
             deficit_pocket = max(0.0, 10000.0 - pocket) if c7 >= 14750 else 0.0
             
