@@ -209,7 +209,7 @@ def process_cash(message):
             cushion = personal_pool * 0.20
             drive = 3000.0 + (personal_pool * 0.20)
             
-                        if wife_cash < 55000.0:
+            if wife_cash < 55000.0:
                 deficit_wife = 55000.0 - wife_cash
                 deduct_monuments = min(deficit_wife, monuments)
                 monuments -= deduct_monuments
@@ -225,6 +225,30 @@ def process_cash(message):
                         health -= rem_deficit * (health / sum_funds)
                 
                 wife_cash = 55000.0
+
+            report = (
+                f"📊 **РАСЧЕТ ОСНОВНОГО ДОХОДА ({income:,.0f} ₽)**\n"
+                f"⚙️ Режим твоей доли: `{mode_name}`\n\n"
+                f"💵 **Наличные (От продаж):**\n"
+                f"└ 👩 Жене наличными (60%): **{wife_cash:,.0f} ₽**\n"
+                f"└ 🧔 Твоя чистая доля (40%): **{c7:,.0f} ₽**\n\n"
+                f"🗂 **Распределение по твоим конвертам:**\n"
+                f"🛍 Конверт «Карман»: **{pocket:,.0f} ₽**\n"
+                f"🏎 Конверт «Драйв»: **{drive:,.0f} ₽**\n"
+                f"🎉 Фонд праздников: **{holidays:,.0f} ₽**\n"
+                f"🩺 Конверт «Здоровье»: **{health:,.0f} ₽**\n"
+                f"🚗 Автофонд: **{auto:,.0f} ₽**\n"
+                f"🎒 Мася школа: **{masya_school:,.0f} ₽**\n"
+                f"🏦 Конверт «Подушка»: **{cushion:,.0f} ₽**\n"
+                f"🪦 Конверт «Памятники»: **{monuments:,.0f} ₽**\n"
+                f"🛡️ Конверт «Стабфонд» (начислено): **{stabfond:,.0f} ₽**"
+            )
+            
+            markup = types.InlineKeyboardMarkup()
+            btn = types.InlineKeyboardButton("Внесено в Стабфонд ✅", callback_data=f"add_{stabfond}_{holidays}")
+            markup.add(btn)
+            bot.send_message(message.chat.id, report, reply_markup=markup, parse_mode='Markdown')
+            
     except Exception as e:
         bot.send_message(message.chat.id, "❌ Произошла ошибка при расчете.")
 
