@@ -209,7 +209,7 @@ def process_cash(message):
             cushion = personal_pool * 0.20
             drive = 3000.0 + (personal_pool * 0.20)
             
-            if wife_cash < 55000.0:
+                        if wife_cash < 55000.0:
                 deficit_wife = 55000.0 - wife_cash
                 deduct_monuments = min(deficit_wife, monuments)
                 monuments -= deduct_monuments
@@ -222,6 +222,12 @@ def process_cash(message):
                         holidays -= rem_deficit * (holidays / sum_funds)
                         stabfond -= rem_deficit * (stabfond / sum_funds)
                         cushion -= rem_deficit * (cushion / sum_funds)
+                        health -= rem_deficit * (health / sum_funds)
+                
+                wife_cash = 55000.0
+    except Exception as e:
+        bot.send_message(message.chat.id, "❌ Произошла ошибка при расчете.")
+
 health -= rem_deficit * (health / sum_funds)
 wife_cash = 55000.0
 report = (
