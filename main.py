@@ -299,9 +299,8 @@ e2 = float(message.text.strip())
 
 if e2 <= 2000:
 level_name = "🌱 Микро (до 2к)"
-p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion, p_stab = 0.50, 0.20, 0.15,
-0.05, 0.02, 0.02, 
-0.01elif e2 <= 5000:
+p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion, p_stab = 0.50, 0.20, 0.15, 0.05, 0.02, 0.02, 0.01
+elif e2 <= 5000:
 level_name = "📈 Стандарт (2к - 5к)"
 p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion, p_stab = 0.45, 0.15, 0.20,
 0.10, 0.03, 0.04, 0.03
