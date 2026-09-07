@@ -2,11 +2,13 @@ import telebot
 from telebot import types
 import os
 from datetime import datetime
+from flask import Flask
+import threading
 
 # =====================================================================
-# ТОКЕН БОТА (Берется из настроек хостинга или вставляется сюда)
+# ТОКЕН БОТА
 # =====================================================================
-TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', 'ВАШ_НОВЫЙ_ТОКЕН_ЕСЛИ_НУЖНО')
+TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '')
 bot = telebot.TeleBot(TOKEN)
 
 # Файлы для постоянного хранения балансов на сервере
@@ -107,11 +109,9 @@ def process_cash(message):
         holiday_target_this_month = HOLIDAYS_CALENDAR.get(current_month, 0)
         current_holidays_stock = load_balance(HOLIDAYS_FILE)
         
-        # Переменные по умолчанию
         pocket, drive, holidays, health, auto, cushion, monuments, masya_school, stabfond = [0.0]*9
         mode_name = ""
         
-        # 1. Скудный и переходный режимы (Доля < 31 416 руб)
         if c7 < 31416:
             if c7 < 14750:
                 mode_name = "🟥 Антикризисный режим"
@@ -128,7 +128,6 @@ def process_cash(message):
                 drive = min(3000.0, c7 - 10000.0)
                 leftover = max(0.0, c7 - 13000.0)
                 
-                # Наполнение с жесткими потолками нормы
                 holidays = min(5750.0, leftover * 0.30)
                 health = min(2000.0, leftover * 0.23)
                 auto = min(5000.0, leftover * 0.20)
@@ -136,17 +135,14 @@ def process_cash(message):
                 masya_school = leftover * 0.10
                 monuments = min(2000.0, leftover * 0.05)
                 
-                # Все излишки, превысившие жесткие нормы фондов, выдавливаем обратно в Карман
                 total_allocated = pocket + drive + holidays + health + auto + cushion + masya_school + monuments
                 if total_allocated < c7:
                     pocket += (c7 - total_allocated)
 
-            # Проверка каскадной амортизации за счет Стабфонда
             stab_avail = load_balance(STAB_FILE)
             deficit_wife = max(0.0, 50000.0 - (income * 0.6)) if income * 0.6 < 50000.0 else 0.0
             deficit_pocket = max(0.0, 10000.0 - pocket) if c7 >= 14750 else 0.0
             
-            # Проверка дефицита праздников конкретно под этот месяц
             needed_holiday_injection = max(0.0, holiday_target_this_month - current_holidays_stock - holidays)
             if holiday_target_this_month == 0:
                 needed_holiday_injection = 0.0
@@ -188,14 +184,11 @@ def process_cash(message):
                     report += f"❌ В Стабфонде недостаточно средств (Доступно: {stab_avail:,.0f} ₽). Расчет оставлен в исходном процентном виде."
                     bot.send_message(message.chat.id, report, parse_mode='Markdown')
             else:
-                # Если дефицита нет, но и отчислений в стабфонд нет - просто выводим чек
-                # Автоматически прибавляем начисленные копейки праздников к копилке праздников при нажатии кнопки подтверждения
                 markup = types.InlineKeyboardMarkup()
                 btn = types.InlineKeyboardButton("Физически разложено по конвертам ✅", callback_data=f"savebase_{holidays}")
                 markup.add(btn)
                 bot.send_message(message.chat.id, report, reply_markup=markup, parse_mode='Markdown')
 
-        # 2. 🟩 Жирный режим (Доля >= 31 416 руб)
         else:
             mode_name = "🟩 Жирный режим"
             wife_cash = income * 0.60
@@ -206,13 +199,26 @@ def process_cash(message):
             auto = 5000.0
             monuments = 2000.0
             
-            # Стабфонд забирает 15% от свободного остатка вашей доли
             stabfond = (c7 - 14750.0) * 0.15
             free_remainder = (c7 - 14750.0) * 0.85
             
-            # Мася школа берет 10% от свободного остатка
             masya_school = free_remainder * 0.10
             personal_pool = free_remainder * 0.90
             
             pocket = personal_pool * 0.60
             cushion = personal_pool * 0.20
+            drive = 3000.0 + (personal_pool * 0.20)
+            
+            if wife_cash < 55000.0:
+                deficit_wife = 55000.0 - wife_cash
+                deduct_monuments = min(deficit_wife, monuments)
+                monuments -= deduct_monuments
+                rem_deficit = deficit_wife - deduct_monuments
+                
+                if rem_deficit > 0:
+                    sum_funds = auto + holidays + stabfond + cushion + health
+                    if sum_funds > 0:
+                        auto -= rem_deficit * (auto / sum_funds)
+                        holidays -= rem_deficit * (holidays / sum_funds)
+                        stabfond -= rem_deficit * (stabfond / sum_funds)
+                        cushion -= rem_deficit * (cushion / sum_funds)
