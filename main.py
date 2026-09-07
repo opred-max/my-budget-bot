@@ -114,7 +114,7 @@ def process_cash(message):
         
         if c7 < 31416:
             if c7 < 14750:
-                mode_name = "🟥 Антикризисный режим"
+                mode_name = "🟥 Антикризисный regime"
                 pocket = c7 * 0.30
                 drive = c7 * 0.22
                 holidays = c7 * 0.16
