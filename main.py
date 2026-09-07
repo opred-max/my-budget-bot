@@ -139,7 +139,7 @@ def process_cash(message):
                 if total_allocated < c7:
                     pocket += (c7 - total_allocated)
 
-            stab_avail = load_balance(STAB_FILE)
+                        stab_avail = load_balance(STAB_FILE)
             deficit_wife = max(0.0, 50000.0 - (income * 0.6)) if income * 0.6 < 50000.0 else 0.0
             deficit_pocket = max(0.0, 10000.0 - pocket) if c7 >= 14750 else 0.0
             
@@ -173,21 +173,47 @@ def process_cash(message):
                     f"└ Нехватка жене: {deficit_wife:,.0f} ₽\n"
                     f"└ Доводка Кармана: {deficit_pocket:,.0f} ₽\n"
                     f"└ Нехватка Праздников на месяц: {needed_holiday_injection:,.0f} ₽\n"
-                    f"└ **Итого требуется изъять: {total_deficit:,.0f} ₽**\n\n"
+                    f"└ **Итого требуется: {total_deficit:,.0f} ₽**\n"
+                    f"└ В Стабфонде сейчас доступно: **{stab_avail:,.0f} ₽**\n\n"
                 )
-                if stab_avail >= total_deficit:
+                
+                if stab_avail > 0:
+                    # Рассчитываем, сколько РЕАЛЬНО сможем забрать (все или сколько есть)
+                    actual_drain = min(stab_avail, total_deficit)
+                    
+                    # Распределяем доступные крохи строго по приоритетам для кнопки подтверждения
+                    rem_drain = actual_drain
+                    
+                    applied_wife = min(rem_drain, deficit_wife)
+                    rem_drain -= applied_wife
+                    
+                    applied_pocket = min(rem_drain, deficit_pocket)
+                    rem_drain -= applied_pocket
+                    
+                    applied_hol = min(rem_drain, needed_holiday_injection)
+                    
                     markup = types.InlineKeyboardMarkup()
-                    btn = types.InlineKeyboardButton(f"⚠️ Покрыть дефицит из Стабфонда", callback_data=f"sub_{total_deficit}_{deficit_wife}_{deficit_pocket}_{needed_holiday_injection}")
+                    btn = types.InlineKeyboardButton(f"⚠️ Покрыть из Стабфонда сколько есть ({actual_drain:,.0f} ₽)", callback_data=f"sub_{actual_drain}_{applied_wife}_{applied_pocket}_{applied_hol}")
                     markup.add(btn)
-                    bot.send_message(message.chat.id, report + f"🟢 В Стабфонде достаточно средств ({stab_avail:,.0f} ₽). Нажми кнопку для физического покрытия дефицита.", reply_markup=markup, parse_mode='Markdown')
+                    
+                    if actual_drain < total_deficit:
+                        report += f"⚠️ **Внимание:** Средств фонда не хватит полностью. Будет изъят весь остаток в {actual_drain:,.0f} ₽, но останется непокрытый дефицит в {total_deficit - actual_drain:,.0f} ₽."
+                    else:
+                        report += f"🟢 Фонд полностью закрывает просадку."
+                        
+                    bot.send_message(message.chat.id, report, reply_markup=markup, parse_mode='Markdown')
                 else:
-                    report += f"❌ В Стабфонде недостаточно средств (Доступно: {stab_avail:,.0f} ₽). Расчет оставлен в исходном процентном виде."
-                    bot.send_message(message.chat.id, report, parse_mode='Markdown')
+                    report += f"❌ Стабфонд полностью пуст (0 ₽). Амортизация невозможна, раскладывай строго по процентам."
+                    markup = types.InlineKeyboardMarkup()
+                    btn = types.InlineKeyboardButton("Разложено по процентам (Фонд пуст) ✅", callback_data=f"savebase_{holidays}")
+                    markup.add(btn)
+                    bot.send_message(message.chat.id, report, reply_markup=markup, parse_mode='Markdown')
             else:
                 markup = types.InlineKeyboardMarkup()
                 btn = types.InlineKeyboardButton("Физически разложено по конвертам ✅", callback_data=f"savebase_{holidays}")
                 markup.add(btn)
                 bot.send_message(message.chat.id, report, reply_markup=markup, parse_mode='Markdown')
+
 
         else:
             mode_name = "🟩 Жирный режим"
