@@ -247,7 +247,6 @@ def process_cash(message):
             btn = types.InlineKeyboardButton("Внесено в Стабфонд ✅", callback_data=f"add_{stabfond}_{holidays}")
             markup.add(btn)
             bot.send_message(message.chat.id, report, reply_markup=markup, parse_mode='Markdown')
-            
     except Exception as e:
         bot.send_message(message.chat.id, "❌ Произошла ошибка при расчете.")
 
