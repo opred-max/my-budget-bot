@@ -2,6 +2,7 @@ import telebot
 from telebot import types
 import os
 from datetime import datetime
+import math
 from flask import Flask
 import threading
 
@@ -79,13 +80,13 @@ def get_main_keyboard():
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     welcome_text = (
-        "👋 **Привет! Я твой обновленный финансовый ассистент.**\n"
-        "Контролирую Стабфонд, Драйв и Праздники. Карман под защитой буферов.\n\n"
+        "👋 **Financial Engine v3.0 активирован.**\n"
+        "Внедрен гибкий каскадно-градиентный алгоритм распределения долей.\n\n"
         "🔧 **Скрытые команды управления балансами:**\n"
         "├ `/set XXXXX` — установить баланс Стабфонда (Пример: `/set 15000`)\n"
         "├ `/set_holidays XXXXX` — установить баланс Праздников (Пример: `/set_holidays 5000`)\n"
         "└ `/spend_holidays XXXXX` — списать деньги на подарок (Пример: `/spend_holidays 3000`)\n\n"
-        "Используй кнопки меню для распределения новых доходов 👇"
+        "Используй кнопки меню для ввода доходов 👇"
     )
     bot.send_message(message.chat.id, welcome_text, reply_markup=get_main_keyboard(), parse_mode='Markdown')
 # =====================================================================
@@ -275,7 +276,7 @@ def process_cash(message):
                 bot.send_message(message.chat.id, report, reply_markup=markup, parse_mode='Markdown')
 
         else:
-            mode_name = "🟩 Жирный режим"
+            mode_name = "♾ Градиентный Жирный режим"
             wife_cash = income * 0.60
             c7 = income * 0.40
             
@@ -284,30 +285,40 @@ def process_cash(message):
             auto = 5000.0
             monuments = 2000.0
             
-            stabfond = (c7 - 14750.0) * 0.15
+            stabfond_raw = (c7 - 14750.0) * 0.15
             free_remainder = (c7 - 14750.0) * 0.85
             
             masya_school = free_remainder * 0.10
             personal_pool = free_remainder * 0.90
             
-            pocket = personal_pool * 0.60
+            pocket_raw = personal_pool * 0.60
+            drive_raw = 3000.0 + (personal_pool * 0.20)
             cushion = personal_pool * 0.20
-            drive = 3000.0 + (personal_pool * 0.20)
             
-            # ЗАЩИТА ОТ ЯМЫ: Выравниваем Карман до 10 000 ₽ за счет потрошения Драйва и Стабфонда
-            if pocket < 10000.0:
-                pocket_deficit = 10000.0 - pocket
-                total_buffer = drive + stabfond
-                if total_buffer > 0:
-                    if total_buffer >= pocket_deficit:
-                        share_drive = drive / total_buffer
-                        share_stab = stabfond / total_buffer
-                        drive -= pocket_deficit * share_drive
-                        stabfond -= pocket_deficit * share_stab
-                    else:
-                        drive = 0.0
-                        stabfond = 0.0
-                pocket = 10000.0
+            # Внедрение каскадного кастомного градиента: вытягиваем Карман вверх за счет Стабфонда и Драйва
+            target_floor = 15000.0
+            if pocket_raw < target_floor:
+                pocket_deficit = target_floor - pocket_raw
+                # Степень потрошения буферов зависит от величины дефицита (нелинейный каскад)
+                buffer_pool = drive_raw + stabfond_raw
+                if buffer_pool > 0:
+                    extract_factor = min(1.0, pocket_deficit / buffer_pool)
+                    allocated_from_buffer = buffer_pool * extract_factor
+                    
+                    share_drive = drive_raw / buffer_pool
+                    share_stab = stabfond_raw / buffer_pool
+                    
+                    drive = drive_raw - (allocated_from_buffer * share_drive)
+                    stabfond = stabfond_raw - (allocated_from_buffer * share_stab)
+                    pocket = pocket_raw + allocated_from_buffer
+                else:
+                    drive, stabfond, pocket = drive_raw, stabfond_raw, pocket_raw
+            else:
+                # Если карман и так выше 15к, включается прогрессивный бонус
+                bonus_factor = 0.15 * (1.0 - math.exp(-(pocket_raw - target_floor)/20000.0))
+                pocket = pocket_raw + (stabfond_raw * bonus_factor)
+                stabfond = stabfond_raw * (1.0 - bonus_factor)
+                drive = drive_raw
 
             if wife_cash < 55000.0:
                 deficit_wife = 55000.0 - wife_cash
@@ -332,16 +343,17 @@ def process_cash(message):
                 f"└ 👩 Жене наличными (60%): **{wife_cash:,.0f} ₽**\n"
                 f"└ 🧔 Твоя чистая доля (40%): **{c7:,.0f} ₽**\n\n"
                 f"🗂 **Распределение по твоим конвертам:**\n"
-                f"🛍 Конверт «Карман» (выровнен): **{pocket:,.0f} ₽**\n"
-                f"🏎 Конверт «Драйв» (с буфером): **{drive:,.0f} ₽**\n"
+                f"🛍 Конверт «Карман» (каскад): **{pocket:,.0f} ₽**\n"
+                f"🏎 Конверт «Драйв» (динамика): **{drive:,.0f} ₽**\n"
                 f"🎉 Фонд праздников: **{holidays:,.0f} ₽**\n"
                 f"🩺 Конверт «Здоровье»: **{health:,.0f} ₽**\n"
                 f"🚗 Автофонд: **{auto:,.0f} ₽**\n"
                 f"🎒 Мася школа: **{masya_school:,.0f} ₽**\n"
                 f"🏦 Конверт «Подушка»: **{cushion:,.0f} ₽**\n"
                 f"🪦 Конверт «Памятники»: **{monuments:,.0f} ₽**\n"
-                f"🛡️ Конверт «Стабфонд» (с буфером): **{stabfond:,.0f} ₽**"
+                f"🛡️ Конверт «Стабфонд» (динамика): **{stabfond:,.0f} ₽**"
             )
+            
             markup = types.InlineKeyboardMarkup()
             btn = types.InlineKeyboardButton("Физический взнос подтвержден ✅", callback_data=f"add_{stabfond}_{holidays}")
             markup.add(btn)
