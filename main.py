@@ -79,8 +79,8 @@ def get_main_keyboard():
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     welcome_text = (
-        "👋 **Привет! Я твой финансовый ассистент.**\n"
-        "Контролирую Стабфонд, Праздники и защищаю бюджет от выгорания.\n\n"
+        "👋 **Привет! Я твой обновленный финансовый ассистент.**\n"
+        "Контролирую Стабфонд, Драйв и Праздники. Карман под защитой буферов.\n\n"
         "🔧 **Скрытые команды управления балансами:**\n"
         "├ `/set XXXXX` — установить баланс Стабфонда (Пример: `/set 15000`)\n"
         "├ `/set_holidays XXXXX` — установить баланс Праздников (Пример: `/set_holidays 5000`)\n"
@@ -137,7 +137,7 @@ def spend_holidays_balance(message):
         log_operation("Праздники", "sub", val, new_hol)
         bot.reply_to(message, f"📉 **Списано на подарок:** -{val:,.2f} ₽\n🎉 Остаток в Праздниках: **{new_hol:,.2f} ₽**", parse_mode='Markdown')
     except:
-        bot.reply_to(message, "❌ **Ошибка ввода!** Формат: `/spend_holidays 3000` (только положительные числа)", parse_mode='Markdown')
+        bot.reply_to(message, "❌ **Ошибка ввода!** Используйте формат: `/spend_holidays 3000` (только положительные числа)", parse_mode='Markdown')
 
 @bot.message_handler(func=lambda m: m.text == "ℹ️ Мой Стабфонд")
 def show_balances(message):
@@ -231,7 +231,6 @@ def process_cash(message):
             deficit_pocket = max(0.0, 10000.0 - pocket) if c7 >= 14750 else 0.0
             
             needed_holiday_injection = max(0.0, holiday_target_this_month - current_holidays_stock - holidays)
-            
             total_deficit = deficit_wife + deficit_pocket + needed_holiday_injection
             
             report = (
@@ -260,7 +259,6 @@ def process_cash(message):
                     f"└ Нехватка Праздников на месяц: {needed_holiday_injection:,.0f} ₽\n"
                     f"└ **Итого требуется изъять: {total_deficit:,.0f} ₽**\n\n"
                 )
-                
                 if stab_avail > 0:
                     markup = types.InlineKeyboardMarkup()
                     btn = types.InlineKeyboardButton(f"⚠️ Покрыть из Стабфонда (Есть: {stab_avail:,.0f} ₽)", 
@@ -296,6 +294,21 @@ def process_cash(message):
             cushion = personal_pool * 0.20
             drive = 3000.0 + (personal_pool * 0.20)
             
+            # ЗАЩИТА ОТ ЯМЫ: Выравниваем Карман до 10 000 ₽ за счет потрошения Драйва и Стабфонда
+            if pocket < 10000.0:
+                pocket_deficit = 10000.0 - pocket
+                total_buffer = drive + stabfond
+                if total_buffer > 0:
+                    if total_buffer >= pocket_deficit:
+                        share_drive = drive / total_buffer
+                        share_stab = stabfond / total_buffer
+                        drive -= pocket_deficit * share_drive
+                        stabfond -= pocket_deficit * share_stab
+                    else:
+                        drive = 0.0
+                        stabfond = 0.0
+                pocket = 10000.0
+
             if wife_cash < 55000.0:
                 deficit_wife = 55000.0 - wife_cash
                 deduct_monuments = min(deficit_wife, monuments)
@@ -310,7 +323,6 @@ def process_cash(message):
                         stabfond -= rem_deficit * (stabfond / sum_funds)
                         cushion -= rem_deficit * (cushion / sum_funds)
                         health -= rem_deficit * (health / sum_funds)
-                
                 wife_cash = 55000.0
 
             report = (
@@ -320,17 +332,16 @@ def process_cash(message):
                 f"└ 👩 Жене наличными (60%): **{wife_cash:,.0f} ₽**\n"
                 f"└ 🧔 Твоя чистая доля (40%): **{c7:,.0f} ₽**\n\n"
                 f"🗂 **Распределение по твоим конвертам:**\n"
-                f"🛍 Конверт «Карман»: **{pocket:,.0f} ₽**\n"
-                f"🏎 Конверт «Драйв»: **{drive:,.0f} ₽**\n"
+                f"🛍 Конверт «Карман» (выровнен): **{pocket:,.0f} ₽**\n"
+                f"🏎 Конверт «Драйв» (с буфером): **{drive:,.0f} ₽**\n"
                 f"🎉 Фонд праздников: **{holidays:,.0f} ₽**\n"
                 f"🩺 Конверт «Здоровье»: **{health:,.0f} ₽**\n"
                 f"🚗 Автофонд: **{auto:,.0f} ₽**\n"
                 f"🎒 Мася школа: **{masya_school:,.0f} ₽**\n"
                 f"🏦 Конверт «Подушка»: **{cushion:,.0f} ₽**\n"
                 f"🪦 Конверт «Памятники»: **{monuments:,.0f} ₽**\n"
-                f"🛡️ Конверт «Стабфонд» (начислено): **{stabfond:,.0f} ₽**"
+                f"🛡️ Конверт «Стабфонд» (с буфером): **{stabfond:,.0f} ₽**"
             )
-            
             markup = types.InlineKeyboardMarkup()
             btn = types.InlineKeyboardButton("Физический взнос подтвержден ✅", callback_data=f"add_{stabfond}_{holidays}")
             markup.add(btn)
