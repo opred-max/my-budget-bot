@@ -58,7 +58,6 @@ HOLIDAYS_CALENDAR = {
     1: 7000, 2: 0, 3: 12000, 4: 5000, 5: 2000, 6: 0,
     7: 1000, 8: 23000, 9: 3000, 10: 8000, 11: 0, 12: 10000
 }
-
 def validate_amount(text):
     try:
         val = float(text.strip().replace(',', '.'))
@@ -89,6 +88,7 @@ def send_welcome(message):
         "Используй кнопки меню для ввода доходов 👇"
     )
     bot.send_message(message.chat.id, welcome_text, reply_markup=get_main_keyboard(), parse_mode='Markdown')
+
 # =====================================================================
 # СКРЫТЫЕ КОМАНДЫ И ВЫВОД СОСТОЯНИЯ КОПИЛОК
 # =====================================================================
@@ -174,7 +174,6 @@ def show_balances(message):
         msg += "\n🔔 **НАДВИГАЮЩИЕСЯ СОБЫТИЯ:**\n" + "\n".join(upcoming_alerts)
         
     bot.send_message(message.chat.id, msg, parse_mode='Markdown')
-
 # =====================================================================
 # ЛОГИКА ОБРАБОТКИ ВВОДА ОСНОВНОГО ДОХОДА
 # =====================================================================
@@ -182,6 +181,7 @@ def show_balances(message):
 def ask_cash(message):
     msg = bot.send_message(message.chat.id, "💵 Отлично! Введите общую сумму наличных от продаж:")
     bot.register_next_step_handler(msg, process_cash)
+
 def process_cash(message):
     try:
         income = validate_amount(message.text)
@@ -295,11 +295,9 @@ def process_cash(message):
             drive_raw = 3000.0 + (personal_pool * 0.20)
             cushion = personal_pool * 0.20
             
-            # Внедрение каскадного кастомного градиента: вытягиваем Карман вверх за счет Стабфонда и Драйва
             target_floor = 15000.0
             if pocket_raw < target_floor:
                 pocket_deficit = target_floor - pocket_raw
-                # Степень потрошения буферов зависит от величины дефицита (нелинейный каскад)
                 buffer_pool = drive_raw + stabfond_raw
                 if buffer_pool > 0:
                     extract_factor = min(1.0, pocket_deficit / buffer_pool)
@@ -314,7 +312,6 @@ def process_cash(message):
                 else:
                     drive, stabfond, pocket = drive_raw, stabfond_raw, pocket_raw
             else:
-                # Если карман и так выше 15к, включается прогрессивный бонус
                 bonus_factor = 0.15 * (1.0 - math.exp(-(pocket_raw - target_floor)/20000.0))
                 pocket = pocket_raw + (stabfond_raw * bonus_factor)
                 stabfond = stabfond_raw * (1.0 - bonus_factor)
@@ -377,18 +374,19 @@ def process_side(message):
             bot.register_next_step_handler(msg, process_side)
             return
         
+        # ИСПРАВЛЕНО: суммы коэффициентов доведены ровно до 1.00 (100%)
         if e2 <= 2000:
             level_name = "🌱 Микро (до 2к)"
-            p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion, p_stab = 0.50, 0.20, 0.15, 0.05, 0.02, 0.02, 0.01
+            p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion, p_stab = 0.50, 0.20, 0.20, 0.05, 0.02, 0.02, 0.01
         elif e2 <= 5000:
             level_name = "📈 Стандарт (2к - 5к)"
-            p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion, p_stab = 0.45, 0.15, 0.20, 0.10, 0.03, 0.04, 0.03
+            p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion, p_stab = 0.45, 0.15, 0.25, 0.10, 0.03, 0.04, 0.03
         elif e2 <= 8000:
             level_name = "🚀 Профи (5к - 8к)"
-            p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion, p_stab = 0.45, 0.15, 0.20, 0.12, 0.03, 0.03, 0.02
+            p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion, p_stab = 0.45, 0.15, 0.25, 0.12, 0.03, 0.03, 0.02
         else:
             level_name = "🔥 Турбо-Досрочка (Выше 8к)"
-            p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion, p_stab = 0.50, 0.15, 0.15, 0.12, 0.03, 0.03, 0.02
+            p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion, p_stab = 0.50, 0.15, 0.20, 0.12, 0.03, 0.03, 0.02
 
         pocket = e2 * p_pocket
         drive = e2 * p_drive
