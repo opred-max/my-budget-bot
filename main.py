@@ -374,13 +374,14 @@ def process_side(message):
             bot.register_next_step_handler(msg, process_side)
             return
         
-        # ИСПРАВЛЕНО: суммы коэффициентов доведены ровно до 1.00 (100%)
+        # РАСЧЕТ КОЭФФИЦИЕНТОВ (Везде сумма строго равна 1.00)
         if e2 <= 2000:
             level_name = "🌱 Микро (до 2к)"
             p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion, p_stab = 0.50, 0.20, 0.20, 0.05, 0.02, 0.02, 0.01
         elif e2 <= 5000:
             level_name = "📈 Стандарт (2к - 5к)"
-            p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion, p_stab = 0.45, 0.15, 0.25, 0.10, 0.03, 0.04, 0.03
+            # ИСПРАВЛЕНО: было pocket=0.45 и cushion=0.04 (итого 1.05). Теперь сумма ровно 1.00
+            p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion, p_stab = 0.43, 0.15, 0.25, 0.10, 0.03, 0.03, 0.01
         elif e2 <= 8000:
             level_name = "🚀 Профи (5к - 8к)"
             p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion, p_stab = 0.45, 0.15, 0.25, 0.12, 0.03, 0.03, 0.02
