@@ -32,6 +32,8 @@ def load_balances():
     try:
         with open(BALANCES_FILE, "r", encoding="utf-8") as f:
             data = f.read().strip().split("|")
+            if len(data) < 2:
+                return default_balances
             return {
                 "credit": max(0.0, float(data[0])),
                 "cushion_accumulated": max(0.0, float(data[1]))
@@ -167,7 +169,7 @@ def show_monthly_report(message):
         f"💰 **Всего подтверждено: {total_earned:,.2f} ₽**\n"
         f" ├ Из основного дохода: {total_main:,.2f} ₽\n"
         f" └ Из подработок: {total_side:,.2f} ₽\n\n"
-        f"🗂 **Распределено по конвертам за месяц:**\n"
+        f"🗂 **Распределено по конвертам за month:**\n"
         f"🛍 Карман: {r_pocket:,.0f} ₽\n"
         f"🏎 Драйв: {r_drive:,.0f} ₽\n"
         f"🎒 Мася школа: {r_school:,.0f} ₽\n"
@@ -209,7 +211,7 @@ def process_cash(message):
         
         if c7 < 31416:
             if c7 < 14750:
-                mode_name = "🟥 Антикризисный regime"
+                mode_name = "🟥 Антикризисный режим"
                 p_holidays = 0.16 if holiday_target_this_month > 0 else 0.0
                 p_cushion = 0.06 + (0.16 if holiday_target_this_month == 0 else 0.0)
                 
@@ -380,7 +382,7 @@ def process_side(message):
 
         pocket, drive, credit, school, holidays, cushion = [0.0] * 6
         
-        # ПРАВИЛО №1: СВЕРХДОХОД (выше 10 000 ₽) с усилением Школы
+        # ПРАВИЛО №1: СВЕРХДОХОД (выше 10 000 ₽) с усилением Школы до 30%
         if e2 > 10000:
             level_name = "🔥 Турбо Сверхдоход (Выше 10к)"
             pocket = 4500.0
@@ -388,7 +390,6 @@ def process_side(message):
             holidays = 0.0
             
             leftover = e2 - 6000.0
-            # Переведено на проценты: Мася школа получает 30% от остатка
             school = leftover * 0.30
             rem_pool = leftover * 0.70
             
@@ -413,7 +414,6 @@ def process_side(message):
                 level_name = "🚀 Профи (5к - 8к)"
                 p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion = 0.45, 0.15, 0.25, 0.12, 0.03, 0.05
 
-            # Корректировка, если цели закрыты
             if is_credit_done:
                 p_cushion += p_credit
                 p_credit = 0.0
@@ -434,7 +434,6 @@ def process_side(message):
         r_school = math.floor(school / 10) * 10
         r_holidays = math.floor(holidays / 10) * 10
         
-        # Распределение сдачи от округления
         if credit > 0:
             r_cushion = math.floor(cushion / 10) * 10
             allocated_except_credit = r_pocket + r_drive + r_school + r_holidays + r_cushion
