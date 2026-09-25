@@ -79,8 +79,9 @@ def get_main_keyboard():
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     welcome_text = (
-        "👋 **Financial Engine v5.0 активирован.**\n"
-        "Успешно внедрена 4-уровневая плавная система распределения долей.\n\n"
+        "👋 **Financial Engine v5.5 активирован.**\n"
+        "Успешно внедрена 4-уровневая плавная система распределения долей.\n"
+        "Реализовано автоматическое скрытие пустых конвертов.\n\n"
         "🔧 **Команды управления целями (балансами):**\n"
         "├ `/set_credit XXXXX` — изменить остаток долга по Кредиту\n"
         "│  (Пример: `/set_credit 125423.45`)\n"
@@ -164,25 +165,28 @@ def show_monthly_report(message):
                     r_credit += float(parts[12])
                     
     total_earned = total_main + total_side
+    
     msg = (
         f"📊 **ФИНАНСОВАЯ СВОДКА ЗА ТЕКУЩИЙ МЕСЯЦ:**\n\n"
         f"💰 **Всего подтверждено: {total_earned:,.2f} ₽**\n"
         f" ├ Из основного дохода: {total_main:,.2f} ₽\n"
         f" └ Из подработок: {total_side:,.2f} ₽\n\n"
         f"🗂 **Распределено по конвертам за месяц:**\n"
-        f"🛍 Карман: {r_pocket:,.0f} ₽\n"
-        f"🏎 Драйв: {r_drive:,.0f} ₽\n"
-        f"🎒 Мася школа: {r_school:,.0f} ₽\n"
-        f"🏦 Подушка безопасности: {r_cushion:,.0f} ₽\n"
-        f"📉 На досрочку кредита: {r_credit:,.0f} ₽\n"
-        f"🎉 Фонд праздников: {r_holidays:,.0f} ₽\n"
-        f"🩺 Здоровье: {r_health:,.0f} ₽\n"
-        f"🚗 Автофонд: {r_auto:,.0f} ₽\n"
-        f"🪦 Памятники: {r_monuments:,.0f} ₽"
     )
+    
+    if r_pocket > 0: msg += f"🛍 Карман: {r_pocket:,.0f} ₽\n"
+    if r_drive > 0: msg += f"🏎 Драйв: {r_drive:,.0f} ₽\n"
+    if r_school > 0: msg += f"🎒 Мася школа: {r_school:,.0f} ₽\n"
+    if r_cushion > 0: msg += f"🏦 Подушка безопасности: {r_cushion:,.0f} ₽\n"
+    if r_credit > 0: msg += f"📉 На досрочку кредита: {r_credit:,.0f} ₽\n"
+    if r_holidays > 0: msg += f"🎉 Фонд праздников: {r_holidays:,.0f} ₽\n"
+    if r_health > 0: msg += f"🩺 Здоровье: {r_health:,.0f} ₽\n"
+    if r_auto > 0: msg += f"🚗 Автофонд: {r_auto:,.0f} ₽\n"
+    if r_monuments > 0: msg += f"🪦 Памятники: {r_monuments:,.0f} ₽"
+    
     bot.send_message(message.chat.id, msg, parse_mode='Markdown')
 # =====================================================================
-# ЛОГИКА ОБРАБОТКИ ВВОДА ОСНОВНОГО ДОХОДА (4-УРОВНЕВАЯ)
+# ЛОГИКА ОБРАБОТКИ ВВОДА ОСНОВНОГО ДОХОДА (ОБНОВЛЕННАЯ СЕТКА)
 # =====================================================================
 @bot.message_handler(func=lambda m: m.text == "💵 Основной доход")
 def ask_cash(message):
@@ -209,7 +213,8 @@ def process_cash(message):
         # 1. РЕЖИМ ВЫЖИВАНИЯ (До 15 000 руб твоей доли)
         if c7 <= 15000:
             mode_name = "🟥 Уровень 1: Выживание"
-            p_pocket, p_drive, p_school, p_holidays, p_health, p_auto, p_cushion, p_monuments = 0.27, 0.19, 0.10, 0.16, 0.12, 0.10, 0.06, 0.00
+            # Драйв (19%) ушел в Карман (27% + 19% = 46%). Памятники = 0%
+            p_pocket, p_drive, p_school, p_holidays, p_health, p_auto, p_cushion, p_monuments = 0.46, 0.00, 0.10, 0.16, 0.12, 0.10, 0.06, 0.00
             
             if is_cushion_full:
                 p_pocket += p_cushion
@@ -227,7 +232,8 @@ def process_cash(message):
         # 2. РЕЖИМ СТАБИЛИЗАЦИИ (От 15 000 до 30 000 руб твоей доли)
         elif c7 <= 30000:
             mode_name = "🟧 Уровень 2: Стабилизация"
-            p_pocket, p_drive, p_school, p_cushion, p_holidays, p_health, p_auto, p_monuments = 0.35, 0.12, 0.12, 0.10, 0.12, 0.08, 0.08, 0.03
+            # Памятники (3%) ушли в Драйв (12% + 3% = 15%). Памятники = 0%
+            p_pocket, p_drive, p_school, p_cushion, p_holidays, p_health, p_auto, p_monuments = 0.35, 0.15, 0.12, 0.10, 0.12, 0.08, 0.08, 0.00
             
             if is_cushion_full:
                 p_pocket += p_cushion
@@ -245,7 +251,8 @@ def process_cash(message):
         # 3. РЕЖИМ РАЗВИТИЯ (От 30 000 до 50 000 руб твоей доли)
         elif c7 <= 50000:
             mode_name = "🟨 Уровень 3: Развитие"
-            p_pocket, p_drive, p_school, p_cushion, p_holidays, p_health, p_auto, p_monuments = 0.42, 0.13, 0.15, 0.12, 0.08, 0.04, 0.04, 0.02
+            # Выровнен шаг автофонда (поднят до 6%), подправлено здоровье (5%)
+            p_pocket, p_drive, p_school, p_cushion, p_holidays, p_health, p_auto, p_monuments = 0.42, 0.10, 0.15, 0.12, 0.08, 0.05, 0.06, 0.02
             
             if is_cushion_full:
                 p_pocket += p_cushion
@@ -263,7 +270,6 @@ def process_cash(message):
         # 4. СВЕРХДОХОД / ЖИРНЫЙ РЕЖИМ (Выше 50 000 руб твоей доли)
         else:
             mode_name = "♾ Уровень 4: Жирный режим"
-            # Жестко фиксируем базу обязательных трат
             holidays = 5750.0
             health = 2000.0
             auto = 5000.0
@@ -271,7 +277,6 @@ def process_cash(message):
             
             leftover = c7 - 14750.0
             
-            # Жирные проценты на остаток
             pocket = leftover * 0.50
             masya_school = leftover * 0.20
             drive = leftover * 0.10
@@ -292,7 +297,6 @@ def process_cash(message):
         r_monuments = math.floor(monuments / 10) * 10
         r_masya_school = math.floor(masya_school / 10) * 10
         
-        # Направление сдачи округления
         allocated_except_cushion = r_pocket + r_drive + r_holidays + r_health + r_auto + r_monuments + r_masya_school
         if is_cushion_full:
             r_pocket += (c7 - allocated_except_cushion)
@@ -307,15 +311,17 @@ def process_cash(message):
             f"└ 👩 Жене наличными (60%): **{wife_cash:,.0f} ₽**\n"
             f"└ 🧔 Твоя чистая доля (40%): **{c7:,.0f} ₽**\n\n"
             f"🗂 **Распределение по конвертам:**\n"
-            f"🛍 Конверт «Карман»: **{r_pocket:,.0f} ₽**\n"
-            f"🏎 Конверт «Драйв»: **{r_drive:,.0f} ₽**\n"
-            f"🎉 Фонд праздников: **{r_holidays:,.0f} ₽**\n"
-            f"🩺 Конверт «Здоровье»: **{r_health:,.0f} ₽**\n"
-            f"🚗 Автофонд: **{r_auto:,.0f} ₽**\n"
-            f"🎒 Мася школа: **{r_masya_school:,.0f} ₽**\n"
-            f"🪦 Конверт «Памятники»: **{r_monuments:,.0f} ₽**\n"
-            f"🏦 Конверт «Подушка»: **{r_cushion:,.0f} ₽**"
         )
+        
+        # ДИНАМИЧЕСКИЙ ВЫВОД: Выводим только те конверты, где сумма больше нуля
+        if r_pocket > 0: report += f"🛍 Конверт «Карман»: **{r_pocket:,.0f} ₽**\n"
+        if r_drive > 0: report += f"🏎 Конверт «Драйв»: **{r_drive:,.0f} ₽**\n"
+        if r_holidays > 0: report += f"🎉 Фонд праздников: **{r_holidays:,.0f} ₽**\n"
+        if r_health > 0: report += f"🩺 Конверт «Здоровье»: **{r_health:,.0f} ₽**\n"
+        if r_auto > 0: report += f"🚗 Автофонд: **{r_auto:,.0f} ₽**\n"
+        if r_masya_school > 0: report += f"🎒 Мася школа: **{r_masya_school:,.0f} ₽**\n"
+        if r_monuments > 0: report += f"🪦 Конверт «Памятники»: **{r_monuments:,.0f} ₽**\n"
+        if r_cushion > 0: report += f"🏦 Конверт «Посушка»: **{r_cushion:,.0f} ₽**"
         
         markup = types.InlineKeyboardMarkup()
         cb_data = f"sub_main_{income}_{r_pocket}_{r_drive}_{r_masya_school}_{r_cushion}_{r_holidays}_{r_health}_{r_auto}_{r_monuments}"
@@ -416,13 +422,13 @@ def process_side(message):
         if r_credit > 0:
             report += f"📉 **Досрочка кредита:** **{r_credit:,.0f} ₽** 🔥\n\n"
 
-        report += (
-            f"🗂 **В твои конверты:**\n"
-            f"🛍 Конверт «Карман»: **{r_pocket:,.0f} ₽**\n"
-            f"🏎 Конверт «Драйв»: **{r_drive:,.0f} ₽**\n"
-            f"🎒 Конверт «Мася школа»: **{r_school:,.0f} ₽**\n"
-            f"🏦 Конверт «Подушка»: **{r_cushion:,.0f} ₽**\n"
-        )
+        report += "🗂 **В твои конверты:**\n"
+        
+        # ДИНАМИЧЕСКИЙ ВЫВОД: Скрываем пустые строки
+        if r_pocket > 0: report += f"🛍 Конвет «Карман»: **{r_pocket:,.0f} ₽**\n"
+        if r_drive > 0: report += f"🏎 Конверт «Драйв»: **{r_drive:,.0f} ₽**\n"
+        if r_school > 0: report += f"🎒 Конверт «Мася школа»: **{r_school:,.0f} ₽**\n"
+        if r_cushion > 0: report += f"🏦 Конверт «Подушка»: **{r_cushion:,.0f} ₽**\n"
         if r_holidays > 0: report += f"🎉 Фонд праздников: **{r_holidays:,.0f} ₽**\n"
         
         markup = types.InlineKeyboardMarkup()
