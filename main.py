@@ -79,8 +79,8 @@ def get_main_keyboard():
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     welcome_text = (
-        "👋 **Financial Engine v4.5 активирован.**\n"
-        "Успешно внедрены кастомные распределения и автоконтроль лимитов.\n\n"
+        "👋 **Financial Engine v5.0 активирован.**\n"
+        "Успешно внедрена 4-уровневая плавная система распределения долей.\n\n"
         "🔧 **Команды управления целями (балансами):**\n"
         "├ `/set_credit XXXXX` — изменить остаток долга по Кредиту\n"
         "│  (Пример: `/set_credit 125423.45`)\n"
@@ -182,7 +182,7 @@ def show_monthly_report(message):
     )
     bot.send_message(message.chat.id, msg, parse_mode='Markdown')
 # =====================================================================
-# ЛОГИКА ОБРАБОТКИ ВВОДА ОСНОВНОГО ДОХОДА
+# ЛОГИКА ОБРАБОТКИ ВВОДА ОСНОВНОГО ДОХОДА (4-УРОВНЕВАЯ)
 # =====================================================================
 @bot.message_handler(func=lambda m: m.text == "💵 Основной доход")
 def ask_cash(message):
@@ -206,124 +206,99 @@ def process_cash(message):
         pocket, drive, holidays, health, auto, cushion, monuments, masya_school = [0.0]*8
         mode_name = ""
         
-        if c7 < 31416:
-            if c7 < 14750:
-                mode_name = "🟥 Антикризисный режим"
-                # Праздники теперь пополняются всегда. Памятники убраны в 0%. Сумма = 100%
-                pocket = c7 * 0.27
-                drive = c7 * 0.19
-                masya_school = c7 * 0.10
-                holidays = c7 * 0.16
-                health = c7 * 0.12
-                auto = c7 * 0.10
-                
-                if is_cushion_full:
-                    pocket += (c7 * 0.06)
-                    cushion = 0.0
-                else:
-                    cushion = c7 * 0.06
-                    
-                monuments = 0.0
-            else:
-                mode_name = "🟨 Переходный режим «Гарант»"
-                pocket = 10000.0
-                drive = min(3000.0, c7 - 10000.0)
-                leftover = max(0.0, c7 - 13000.0)
-                
-                holidays = min(5750.0, leftover * 0.30)
-                unused_holidays_share = (leftover * 0.30) - holidays
-                
-                health = min(2000.0, leftover * 0.23)
-                auto = min(5000.0, leftover * 0.20)
-                masya_school = leftover * 0.10
-                monuments = min(2000.0, leftover * 0.05)
-                
-                calculated_cushion = (leftover * 0.12) + unused_holidays_share
-                if is_cushion_full:
-                    pocket += calculated_cushion
-                    cushion = 0.0
-                else:
-                    cushion = calculated_cushion
-                
-                total_allocated = pocket + drive + holidays + health + auto + cushion + masya_school + monuments
-                if total_allocated < c7:
-                    pocket += (c7 - total_allocated)
-
-            r_pocket = math.floor(pocket / 10) * 10
-            r_drive = math.floor(drive / 10) * 10
-            r_holidays = math.floor(holidays / 10) * 10
-            r_health = math.floor(health / 10) * 10
-            r_auto = math.floor(auto / 10) * 10
-            r_monuments = math.floor(monuments / 10) * 10
-            r_masya_school = math.floor(masya_school / 10) * 10
+        # 1. РЕЖИМ ВЫЖИВАНИЯ (До 15 000 руб твоей доли)
+        if c7 <= 15000:
+            mode_name = "🟥 Уровень 1: Выживание"
+            p_pocket, p_drive, p_school, p_holidays, p_health, p_auto, p_cushion, p_monuments = 0.27, 0.19, 0.10, 0.16, 0.12, 0.10, 0.06, 0.00
             
-            allocated_except_cushion = r_pocket + r_drive + r_holidays + r_health + r_auto + r_monuments + r_masya_school
             if is_cushion_full:
-                r_pocket += (c7 - allocated_except_cushion)
-                r_cushion = 0.0
-            else:
-                r_cushion = c7 - allocated_except_cushion
+                p_pocket += p_cushion
+                p_cushion = 0.0
+                
+            pocket = c7 * p_pocket
+            drive = c7 * p_drive
+            masya_school = c7 * p_school
+            holidays = c7 * p_holidays
+            health = c7 * p_health
+            auto = c7 * p_auto
+            cushion = c7 * p_cushion
+            monuments = c7 * p_monuments
 
+        # 2. РЕЖИМ СТАБИЛИЗАЦИИ (От 15 000 до 30 000 руб твоей доли)
+        elif c7 <= 30000:
+            mode_name = "🟧 Уровень 2: Стабилизация"
+            p_pocket, p_drive, p_school, p_cushion, p_holidays, p_health, p_auto, p_monuments = 0.35, 0.12, 0.12, 0.10, 0.12, 0.08, 0.08, 0.03
+            
+            if is_cushion_full:
+                p_pocket += p_cushion
+                p_cushion = 0.0
+                
+            pocket = c7 * p_pocket
+            drive = c7 * p_drive
+            masya_school = c7 * p_school
+            cushion = c7 * p_cushion
+            holidays = c7 * p_holidays
+            health = c7 * p_health
+            auto = c7 * p_auto
+            monuments = c7 * p_monuments
+
+        # 3. РЕЖИМ РАЗВИТИЯ (От 30 000 до 50 000 руб твоей доли)
+        elif c7 <= 50000:
+            mode_name = "🟨 Уровень 3: Развитие"
+            p_pocket, p_drive, p_school, p_cushion, p_holidays, p_health, p_auto, p_monuments = 0.42, 0.13, 0.15, 0.12, 0.08, 0.04, 0.04, 0.02
+            
+            if is_cushion_full:
+                p_pocket += p_cushion
+                p_cushion = 0.0
+                
+            pocket = c7 * p_pocket
+            drive = c7 * p_drive
+            masya_school = c7 * p_school
+            cushion = c7 * p_cushion
+            holidays = c7 * p_holidays
+            health = c7 * p_health
+            auto = c7 * p_auto
+            monuments = c7 * p_monuments
+
+        # 4. СВЕРХДОХОД / ЖИРНЫЙ РЕЖИМ (Выше 50 000 руб твоей доли)
         else:
-            mode_name = "♾ Градиентный Жирный режим"
-            holidays_raw = 5750.0
+            mode_name = "♾ Уровень 4: Жирный режим"
+            # Жестко фиксируем базу обязательных трат
+            holidays = 5750.0
             health = 2000.0
             auto = 5000.0
             monuments = 2000.0
             
-            cushion_raw_share = (c7 - 14750.0) * 0.15 
-            free_remainder = (c7 - 14750.0) * 0.85
+            leftover = c7 - 14750.0
             
-            masya_school = free_remainder * 0.10
-            personal_pool = free_remainder * 0.90
+            # Жирные проценты на остаток
+            pocket = leftover * 0.50
+            masya_school = leftover * 0.20
+            drive = leftover * 0.10
             
-            pocket_raw = personal_pool * 0.60
-            drive_raw = 3000.0 + (personal_pool * 0.20)
-            cushion_from_pool = personal_pool * 0.20
-            
-            cushion = cushion_raw_share + cushion_from_pool
-            holidays = holidays_raw
-
-            target_floor = 15000.0
-            if pocket_raw < target_floor:
-                pocket_deficit = target_floor - pocket_raw
-                buffer_pool = drive_raw + cushion_raw_share
-                if buffer_pool > 0:
-                    extract_factor = min(1.0, pocket_deficit / buffer_pool)
-                    allocated_from_buffer = buffer_pool * extract_factor
-                    
-                    share_drive = drive_raw / buffer_pool
-                    share_cushion = cushion_raw_share / buffer_pool
-                    
-                    drive = drive_raw - (allocated_from_buffer * share_drive)
-                    cushion -= (allocated_from_buffer * share_cushion)
-                    pocket = pocket_raw + allocated_from_buffer
-                else:
-                    drive, pocket = drive_raw, pocket_raw
-            else:
-                bonus_factor = 0.15 * (1.0 - math.exp(-(pocket_raw - target_floor)/20000.0))
-                pocket = pocket_raw + (cushion_raw_share * bonus_factor)
-                cushion -= (cushion_raw_share * bonus_factor)
-                drive = drive_raw
-
+            calculated_cushion = leftover * 0.20
             if is_cushion_full:
-                pocket += cushion
+                pocket += calculated_cushion
                 cushion = 0.0
-
-            r_pocket = math.floor(pocket / 10) * 10
-            r_drive = math.floor(drive / 10) * 10
-            r_holidays = math.floor(holidays / 10) * 10
-            r_health = math.floor(health / 10) * 10
-            r_auto = math.floor(auto / 10) * 10
-            r_monuments = math.floor(monuments / 10) * 10
-            r_masya_school = math.floor(masya_school / 10) * 10
-            
-            allocated_except_cushion = r_pocket + r_drive + r_holidays + r_health + r_auto + r_monuments + r_masya_school
-            if is_cushion_full:
-                r_pocket += (c7 - allocated_except_cushion)
-                r_cushion = 0.0
             else:
-                r_cushion = c7 - allocated_except_cushion
+                cushion = calculated_cushion
+
+        # ПРИМЕНЕНИЕ УМНОГО ОКРУГЛЕНИЯ ДО 10 РУБЛЕЙ
+        r_pocket = math.floor(pocket / 10) * 10
+        r_drive = math.floor(drive / 10) * 10
+        r_holidays = math.floor(holidays / 10) * 10
+        r_health = math.floor(health / 10) * 10
+        r_auto = math.floor(auto / 10) * 10
+        r_monuments = math.floor(monuments / 10) * 10
+        r_masya_school = math.floor(masya_school / 10) * 10
+        
+        # Направление сдачи округления
+        allocated_except_cushion = r_pocket + r_drive + r_holidays + r_health + r_auto + r_monuments + r_masya_school
+        if is_cushion_full:
+            r_pocket += (c7 - allocated_except_cushion)
+            r_cushion = 0.0
+        else:
+            r_cushion = c7 - allocated_except_cushion
 
         report = (
             f"📊 **РАСЧЕТ ОСНОВНОГО ДОХОДА ({income:,.0f} ₽)**\n"
