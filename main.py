@@ -91,7 +91,7 @@ def send_welcome(message):
     bot.send_message(message.chat.id, welcome_text, reply_markup=get_main_keyboard(), parse_mode='Markdown')
 
 # =====================================================================
-# КОМАНДЫ РУЧНОГО ИЗМЕНЕНИЯ БАЛАНСОВ
+# КОМАНДЫ РУЧНОГО ИЗМЕНЕНИЯ БАЛАНСОВ (ИСПРАВЛЕНО)
 # =====================================================================
 @bot.message_handler(commands=['set_credit'])
 def set_credit_balance(message):
@@ -124,7 +124,7 @@ def set_cushion_balance(message):
         bot.reply_to(message, "❌ **Ошибка!** Формат: `/set_cushion 15000` (число должно быть неотрицательным)", parse_mode='Markdown')
 
 # =====================================================================
-# ЭКРАНЫ СВОДОК И ОТЧЕТОВ
+# ЭКРАНЫ СВОДОК И ОТЧЕТОВ (ИСПРАВЛЕНО)
 # =====================================================================
 @bot.message_handler(func=lambda m: m.text == "⚙️ Мои Балансы и Цели")
 def show_balances_screen(message):
@@ -169,7 +169,7 @@ def show_monthly_report(message):
         f"💰 **Всего подтверждено: {total_earned:,.2f} ₽**\n"
         f" ├ Из основного дохода: {total_main:,.2f} ₽\n"
         f" └ Из подработок: {total_side:,.2f} ₽\n\n"
-        f"🗂 **Распределено по конвертам за month:**\n"
+        f"🗂 **Распределено по конвертам за месяц:**\n"
         f"🛍 Карман: {r_pocket:,.0f} ₽\n"
         f"🏎 Драйв: {r_drive:,.0f} ₽\n"
         f"🎒 Мася школа: {r_school:,.0f} ₽\n"
@@ -382,7 +382,7 @@ def process_side(message):
 
         pocket, drive, credit, school, holidays, cushion = [0.0] * 6
         
-        # ПРАВИЛО №1: СВЕРХДОХОД (выше 10 000 ₽) с усилением Школы до 30%
+        # ПРАВИЛО №1: СВЕРХДОХОД (выше 10 000 ₽) с усилением Школы до 30% от остатка
         if e2 > 10000:
             level_name = "🔥 Турбо Сверхдоход (Выше 10к)"
             pocket = 4500.0
