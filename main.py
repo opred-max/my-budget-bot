@@ -26,7 +26,6 @@ HOLIDAYS_CALENDAR = {
 # =====================================================================
 def load_balances():
     """Загружает текущие остатки Кредита и Подушки"""
-    # Стартовые значения по умолчанию
     default_balances = {"credit": 125423.45, "cushion_accumulated": 0.0}
     if not os.path.exists(BALANCES_FILE):
         return default_balances
@@ -78,18 +77,55 @@ def get_main_keyboard():
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     welcome_text = (
-        "👋 **Financial Engine v4.0 активирован.**\n"
-        "Внедрено: 60% супруге, умное округление до 10 ₽, правила сверхдохода "
-        "и автоконтроль лимитов кредита и подушки.\n\n"
-        "Используй кнопки меню для мгновенного расчета 👇"
+        "👋 **Financial Engine v4.5 активирован.**\n"
+        "Успешно внедрены кастомные распределения и автоконтроль лимитов.\n\n"
+        "🔧 **Команды управления целями (балансами):**\n"
+        "├ `/set_credit XXXXX` — изменить остаток долга по Кредиту\n"
+        "│  _(Пример: `/set_credit 125423.45`)_\n"
+        "└ `/set_cushion XXXXX` — изменить баланс Подушки безопасности\n"
+        "   _(Пример: `/set_cushion 15000`)_\n\n"
+        "Используй кнопки меню для расчетов 👇"
     )
     bot.send_message(message.chat.id, welcome_text, reply_markup=get_main_keyboard(), parse_mode='Markdown')
 
 # =====================================================================
-# ЭКРАН МОИХ БАЛАНСОВ И ЦЕНТР СВОДКИ
+# КОМАНДЫ РУЧНОГО ИЗМЕНЕНИЯ БАЛАНСОВ
+# =====================================================================
+@bot.message_handler(commands=['set_credit'])
+def set_credit_balance(message):
+    try:
+        parts = message.text.split()
+        if len(parts) < 2: raise ValueError
+        val = float(parts[1].strip().replace(',', '.'))
+        if val < 0: raise ValueError
+        
+        b = load_balances()
+        b["credit"] = val
+        save_balances(b["credit"], b["cushion_accumulated"])
+        bot.reply_to(message, f"✅ Остаток долга по Кредиту изменен на: **{val:,.2f} ₽**", parse_mode='Markdown')
+    except:
+        bot.reply_to(message, "❌ **Ошибка!** Формат: `/set_credit 125423.45` (число должно быть неотрицательным)", parse_mode='Markdown')
+
+@bot.message_handler(commands=['set_cushion'])
+def set_cushion_balance(message):
+    try:
+        parts = message.text.split()
+        if len(parts) < 2: raise ValueError
+        val = float(parts[1].strip().replace(',', '.'))
+        if val < 0: raise ValueError
+        
+        b = load_balances()
+        b["cushion_accumulated"] = val
+        save_balances(b["credit"], b["cushion_accumulated"])
+        bot.reply_to(message, f"✅ Баланс Подушки безопасности изменен на: **{val:,.2f} ₽**", parse_mode='Markdown')
+    except:
+        bot.reply_to(message, "❌ **Ошибка!** Формат: `/set_cushion 15000` (число должно быть неотрицательным)", parse_mode='Markdown')
+
+# =====================================================================
+# ЭКРАНЫ СВОДОК И ОТЧЕТОВ
 # =====================================================================
 @bot.message_handler(func=lambda m: m.text == "⚙️ Мои Балансы и Цели")
-def show_balances(message):
+def show_balances_screen(message):
     b = load_balances()
     msg = (
         f"⚙️ **ТЕКУЩЕЕ СОСТОЯНИЕ ЦЕЛЕЙ:**\n\n"
@@ -101,7 +137,6 @@ def show_balances(message):
 @bot.message_handler(func=lambda m: m.text == "📊 Ежемесячный отчет")
 def show_monthly_report(message):
     current_month = datetime.now().strftime("%Y-%m")
-    
     total_main, total_side, total_earned = 0.0, 0.0, 0.0
     r_pocket, r_drive, r_school, r_cushion, r_holidays, r_health, r_auto, r_monuments, r_credit = [0.0]*9
     
@@ -127,7 +162,6 @@ def show_monthly_report(message):
                     r_credit += float(parts[12])
                     
     total_earned = total_main + total_side
-    
     msg = (
         f"📊 **ФИНАНСОВАЯ СВОДКА ЗА ТЕКУЩИЙ МЕСЯЦ:**\n\n"
         f"💰 **Всего подтверждено: {total_earned:,.2f} ₽**\n"
@@ -175,11 +209,10 @@ def process_cash(message):
         
         if c7 < 31416:
             if c7 < 14750:
-                mode_name = "🟥 Антикризисный режим"
+                mode_name = "🟥 Антикризисный regime"
                 p_holidays = 0.16 if holiday_target_this_month > 0 else 0.0
                 p_cushion = 0.06 + (0.16 if holiday_target_this_month == 0 else 0.0)
                 
-                # Если подушка собрана, её доля уходит в Карман
                 if is_cushion_full:
                     pocket = c7 * (0.30 + p_cushion)
                     cushion = 0.0
@@ -229,7 +262,6 @@ def process_cash(message):
             r_masya_school = math.floor(masya_school / 10) * 10
             
             allocated_except_cushion = r_pocket + r_drive + r_holidays + r_health + r_auto + r_monuments + r_masya_school
-            
             if is_cushion_full:
                 r_pocket += (c7 - allocated_except_cushion)
                 r_cushion = 0.0
@@ -294,7 +326,6 @@ def process_cash(message):
             r_masya_school = math.floor(masya_school / 10) * 10
             
             allocated_except_cushion = r_pocket + r_drive + r_holidays + r_health + r_auto + r_monuments + r_masya_school
-            
             if is_cushion_full:
                 r_pocket += (c7 - allocated_except_cushion)
                 r_cushion = 0.0
@@ -349,7 +380,7 @@ def process_side(message):
 
         pocket, drive, credit, school, holidays, cushion = [0.0] * 6
         
-        # ПРАВИЛО №1: СВЕРХДОХОД (выше 10 000 ₽)
+        # ПРАВИЛО №1: СВЕРХДОХОД (выше 10 000 ₽) с усилением Школы
         if e2 > 10000:
             level_name = "🔥 Турбо Сверхдоход (Выше 10к)"
             pocket = 4500.0
@@ -357,9 +388,9 @@ def process_side(message):
             holidays = 0.0
             
             leftover = e2 - 6000.0
-            # Школа забирает фиксированную долю из остатка
-            school = leftover * 0.15
-            rem_pool = leftover * 0.85
+            # Переведено на проценты: Мася школа получает 30% от остатка
+            school = leftover * 0.30
+            rem_pool = leftover * 0.70
             
             if is_credit_done and is_cushion_full:
                 pocket += rem_pool
@@ -382,7 +413,7 @@ def process_side(message):
                 level_name = "🚀 Профи (5к - 8к)"
                 p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion = 0.45, 0.15, 0.25, 0.12, 0.03, 0.05
 
-            # Перераспределение процентов, если цели закрыты
+            # Корректировка, если цели закрыты
             if is_credit_done:
                 p_cushion += p_credit
                 p_credit = 0.0
@@ -403,7 +434,7 @@ def process_side(message):
         r_school = math.floor(school / 10) * 10
         r_holidays = math.floor(holidays / 10) * 10
         
-        # Направление сдачи от округления
+        # Распределение сдачи от округления
         if credit > 0:
             r_cushion = math.floor(cushion / 10) * 10
             allocated_except_credit = r_pocket + r_drive + r_school + r_holidays + r_cushion
@@ -446,10 +477,8 @@ def callback_inline(call):
             p = call.data.split("_")
             income, r_pocket, r_drive, r_school, r_cushion, r_holidays, r_health, r_auto, r_monuments = map(float, p[2:])
             
-            # Запись в статистику
             save_to_stats("основной", income, r_pocket, r_drive, r_school, r_cushion, r_holidays, r_health, r_auto, r_monuments, 0.0)
             
-            # Обновление Подушки
             b = load_balances()
             b["cushion_accumulated"] += r_cushion
             save_balances(b["credit"], b["cushion_accumulated"])
@@ -462,10 +491,8 @@ def callback_inline(call):
             p = call.data.split("_")
             income, r_pocket, r_drive, r_school, r_cushion, r_holidays, r_credit = map(float, p[2:])
             
-            # Запись в статистику
             save_to_stats("подработка", income, r_pocket, r_drive, r_school, r_cushion, r_holidays, 0, 0, 0, r_credit)
             
-            # Списание долга и пополнение Подушки
             b = load_balances()
             b["credit"] = max(0.0, b["credit"] - r_credit)
             b["cushion_accumulated"] += r_cushion
