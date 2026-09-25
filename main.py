@@ -91,7 +91,7 @@ def send_welcome(message):
     bot.send_message(message.chat.id, welcome_text, reply_markup=get_main_keyboard(), parse_mode='Markdown')
 
 # =====================================================================
-# КОМАНДЫ РУЧНОГО ИЗМЕНЕНИЯ БАЛАНСОВ (ИСПРАВЛЕНО)
+# КОМАНДЫ РУЧНОГО ИЗМЕНЕНИЯ БАЛАНСОВ
 # =====================================================================
 @bot.message_handler(commands=['set_credit'])
 def set_credit_balance(message):
@@ -203,48 +203,42 @@ def process_cash(message):
         wife_cash = income * 0.60
         c7 = income * 0.40
         
-        current_month = datetime.now().month
-        holiday_target_this_month = HOLIDAYS_CALENDAR.get(current_month, 0)
-        
         pocket, drive, holidays, health, auto, cushion, monuments, masya_school = [0.0]*8
         mode_name = ""
         
         if c7 < 31416:
             if c7 < 14750:
                 mode_name = "🟥 Антикризисный режим"
-                p_holidays = 0.16 if holiday_target_this_month > 0 else 0.0
-                p_cushion = 0.06 + (0.16 if holiday_target_this_month == 0 else 0.0)
-                
-                if is_cushion_full:
-                    pocket = c7 * (0.30 + p_cushion)
-                    cushion = 0.0
-                else:
-                    pocket = c7 * 0.30
-                    cushion = c7 * p_cushion
-                    
-                drive = c7 * 0.22
-                holidays = c7 * p_holidays
+                # Праздники теперь пополняются всегда. Памятники убраны в 0%. Сумма = 100%
+                pocket = c7 * 0.27
+                drive = c7 * 0.19
+                masya_school = c7 * 0.10
+                holidays = c7 * 0.16
                 health = c7 * 0.12
                 auto = c7 * 0.10
-                monuments = c7 * 0.04
+                
+                if is_cushion_full:
+                    pocket += (c7 * 0.06)
+                    cushion = 0.0
+                else:
+                    cushion = c7 * 0.06
+                    
+                monuments = 0.0
             else:
                 mode_name = "🟨 Переходный режим «Гарант»"
                 pocket = 10000.0
                 drive = min(3000.0, c7 - 10000.0)
                 leftover = max(0.0, c7 - 13000.0)
                 
-                p_holidays = 0.30 if holiday_target_this_month > 0 else 0.0
-                p_cushion = 0.12 + (0.30 if holiday_target_this_month == 0 else 0.0)
-                
-                holidays = min(5750.0, leftover * p_holidays)
-                unused_holidays_share = (leftover * 0.30) - holidays if holiday_target_this_month > 0 else 0.0
+                holidays = min(5750.0, leftover * 0.30)
+                unused_holidays_share = (leftover * 0.30) - holidays
                 
                 health = min(2000.0, leftover * 0.23)
                 auto = min(5000.0, leftover * 0.20)
                 masya_school = leftover * 0.10
                 monuments = min(2000.0, leftover * 0.05)
                 
-                calculated_cushion = (leftover * p_cushion) + unused_holidays_share
+                calculated_cushion = (leftover * 0.12) + unused_holidays_share
                 if is_cushion_full:
                     pocket += calculated_cushion
                     cushion = 0.0
@@ -272,7 +266,7 @@ def process_cash(message):
 
         else:
             mode_name = "♾ Градиентный Жирный режим"
-            holidays_raw = 5750.0 if holiday_target_this_month > 0 else 0.0
+            holidays_raw = 5750.0
             health = 2000.0
             auto = 5000.0
             monuments = 2000.0
@@ -288,9 +282,6 @@ def process_cash(message):
             cushion_from_pool = personal_pool * 0.20
             
             cushion = cushion_raw_share + cushion_from_pool
-            if holiday_target_this_month == 0:
-                cushion += 5750.0
-                
             holidays = holidays_raw
 
             target_floor = 15000.0
