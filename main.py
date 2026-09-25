@@ -83,9 +83,9 @@ def send_welcome(message):
         "Успешно внедрены кастомные распределения и автоконтроль лимитов.\n\n"
         "🔧 **Команды управления целями (балансами):**\n"
         "├ `/set_credit XXXXX` — изменить остаток долга по Кредиту\n"
-        "│  _(Пример: `/set_credit 125423.45`)_\n"
+        "│  (Пример: `/set_credit 125423.45`)\n"
         "└ `/set_cushion XXXXX` — изменить баланс Подушки безопасности\n"
-        "   _(Пример: `/set_cushion 15000`)_\n\n"
+        "   (Пример: `/set_cushion 15000`)\n\n"
         "Используй кнопки меню для расчетов 👇"
     )
     bot.send_message(message.chat.id, welcome_text, reply_markup=get_main_keyboard(), parse_mode='Markdown')
@@ -124,7 +124,7 @@ def set_cushion_balance(message):
         bot.reply_to(message, "❌ **Ошибка!** Формат: `/set_cushion 15000` (число должно быть неотрицательным)", parse_mode='Markdown')
 
 # =====================================================================
-# ЭКРАНЫ СВОДОК И ОТЧЕТОВ (ИСПРАВЛЕНО)
+# ЭКРАНЫ СВОДОК И ОТЧЕТОВ
 # =====================================================================
 @bot.message_handler(func=lambda m: m.text == "⚙️ Мои Балансы и Цели")
 def show_balances_screen(message):
