@@ -56,8 +56,9 @@ def get_main_keyboard():
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     welcome_text = (
-        "👋 **Financial Engine v3.0 активирован.**\n"
-        "Внедрен гибкий каскадно-градиентный алгоритм распределения долей.\n\n"
+        "👋 **Financial Engine v3.5 активирован.**\n"
+        "Успешно внедрены: фиксированные 60% супруге, умное округление до 10 ₽ "
+        "и автоматическое слияние Стабфонда с Подушкой безопасности.\n\n"
         "Используй кнопки меню для мгновенного расчета доходов 👇"
     )
     bot.send_message(message.chat.id, welcome_text, reply_markup=get_main_keyboard(), parse_mode='Markdown')
@@ -86,7 +87,7 @@ def show_balances(message):
 
     msg = (
         f"ℹ️ **ИНФОРМАЦИЯ О РАСХОДАХ:**\n\n"
-        f"📅 План расходов на текущий месяц: **{month_target:,.2f} ₽**\n"
+        f"📅 План трат на текущий месяц: **{month_target:,.0f} ₽**\n"
     )
     if upcoming_alerts:
         msg += "\n🔔 **НАДВИГАЮЩИЕСЯ СОБЫТИЯ:**\n" + "\n".join(upcoming_alerts)
@@ -104,28 +105,33 @@ def process_cash(message):
     try:
         income = validate_amount(message.text)
         if income is None:
-            msg = bot.send_message(message.chat.id, "❌ **Ошибка ввода!** Пожалуйста, введите корректное положительное число (например, 45000):")
+            msg = bot.send_message(message.chat.id, "❌ **Ошибка ввода!** Введите корректное положительное число (например, 45000):")
             bot.register_next_step_handler(msg, process_cash)
             return
 
-        wife_cash = max(50000.0, income * 0.6)
-        c7 = max(0.0, income - wife_cash)
+        # Новое железное правило семейного бюджета
+        wife_cash = income * 0.60
+        c7 = income * 0.40
         
         current_month = datetime.now().month
         holiday_target_this_month = HOLIDAYS_CALENDAR.get(current_month, 0)
         
-        pocket, drive, holidays, health, auto, cushion, monuments, masya_school, stabfond = [0.0]*9
+        pocket, drive, holidays, health, auto, cushion, monuments, masya_school = [0.0]*8
         mode_name = ""
         
         if c7 < 31416:
             if c7 < 14750:
                 mode_name = "🟥 Антикризисный режим"
+                # Проверяем, есть ли траты на праздники в этом месяце. Если нет — отдаем долю Подушке
+                p_holidays = 0.16 if holiday_target_this_month > 0 else 0.0
+                p_cushion = 0.06 + (0.16 if holiday_target_this_month == 0 else 0.0)
+                
                 pocket = c7 * 0.30
                 drive = c7 * 0.22
-                holidays = c7 * 0.16
+                holidays = c7 * p_holidays
                 health = c7 * 0.12
                 auto = c7 * 0.10
-                cushion = c7 * 0.06
+                cushion = c7 * p_cushion
                 monuments = c7 * 0.04
             else:
                 mode_name = "🟨 Переходный режим «Гарант»"
@@ -133,10 +139,16 @@ def process_cash(message):
                 drive = min(3000.0, c7 - 10000.0)
                 leftover = max(0.0, c7 - 13000.0)
                 
-                holidays = min(5750.0, leftover * 0.30)
+                p_holidays = 0.30 if holiday_target_this_month > 0 else 0.0
+                p_cushion = 0.12 + (0.30 if holiday_target_this_month == 0 else 0.0)
+                
+                holidays = min(5750.0, leftover * p_holidays)
+                # Если лимит праздников усечен из-за min(), разницу тоже отдадим в подушку позже
+                unused_holidays_share = (leftover * 0.30) - holidays if holiday_target_this_month > 0 else 0.0
+                
                 health = min(2000.0, leftover * 0.23)
                 auto = min(5000.0, leftover * 0.20)
-                cushion = leftover * 0.12
+                cushion = (leftover * p_cushion) + unused_holidays_share
                 masya_school = leftover * 0.10
                 monuments = min(2000.0, leftover * 0.05)
                 
@@ -144,81 +156,18 @@ def process_cash(message):
                 if total_allocated < c7:
                     pocket += (c7 - total_allocated)
 
-            report = (
-                f"📊 **РАСЧЕТ ОСНОВНОГО ДОХОДА ({income:,.0f} ₽)**\n"
-                f"⚙️ Режим твоей доли: `{mode_name}`\n\n"
-                f"💵 **Наличные (От продаж):**\n"
-                f"└ 👩 Жене наличными: **{wife_cash:,.0f} ₽**\n"
-                f"└ 🧔 Твоя чистая доля: **{c7:,.0f} ₽**\n\n"
-                f"🗂 **Распределение по конвертам:**\n"
-                f"🛍 Конверт «Карман»: **{pocket:,.0f} ₽**\n"
-                f"🏎 Конверт «Драйв»: **{drive:,.0f} ₽**\n"
-                f"🎉 Фонд праздников: **{holidays:,.0f} ₽**\n"
-                f"🩺 Конверт «Здоровье»: **{health:,.0f} ₽**\n"
-                f"🚗 Автофонд: **{auto:,.0f} ₽**\n"
-                f"🎒 Мася школа: **{masya_school:,.0f} ₽**\n"
-                f"🏦 Конверт «Подушка»: **{cushion:,.0f} ₽**\n"
-                f"🪦 Конверт «Памятники»: **{monuments:,.0f} ₽**"
-            )
-            bot.send_message(message.chat.id, report, parse_mode='Markdown')
-
-        else:
-            mode_name = "♾ Градиентный Жирный режим"
-            wife_cash = income * 0.60
-            c7 = income * 0.40
+            # ПРИМЕНЕНИЕ УМНОГО ОКРУГЛЕНИЯ ДО 10 РУБЛЕЙ
+            r_pocket = math.floor(pocket / 10) * 10
+            r_drive = math.floor(drive / 10) * 10
+            r_holidays = math.floor(holidays / 10) * 10
+            r_health = math.floor(health / 10) * 10
+            r_auto = math.floor(auto / 10) * 10
+            r_monuments = math.floor(monuments / 10) * 10
+            r_masya_school = math.floor(masya_school / 10) * 10
             
-            holidays = 5750.0
-            health = 2000.0
-            auto = 5000.0
-            monuments = 2000.0
-            
-            stabfond_raw = (c7 - 14750.0) * 0.15
-            free_remainder = (c7 - 14750.0) * 0.85
-            
-            masya_school = free_remainder * 0.10
-            personal_pool = free_remainder * 0.90
-            
-            pocket_raw = personal_pool * 0.60
-            drive_raw = 3000.0 + (personal_pool * 0.20)
-            cushion = personal_pool * 0.20
-            
-            target_floor = 15000.0
-            if pocket_raw < target_floor:
-                pocket_deficit = target_floor - pocket_raw
-                buffer_pool = drive_raw + stabfond_raw
-                if buffer_pool > 0:
-                    extract_factor = min(1.0, pocket_deficit / buffer_pool)
-                    allocated_from_buffer = buffer_pool * extract_factor
-                    
-                    share_drive = drive_raw / buffer_pool
-                    share_stab = stabfond_raw / buffer_pool
-                    
-                    drive = drive_raw - (allocated_from_buffer * share_drive)
-                    stabfond = stabfond_raw - (allocated_from_buffer * share_stab)
-                    pocket = pocket_raw + allocated_from_buffer
-                else:
-                    drive, stabfond, pocket = drive_raw, stabfond_raw, pocket_raw
-            else:
-                bonus_factor = 0.15 * (1.0 - math.exp(-(pocket_raw - target_floor)/20000.0))
-                pocket = pocket_raw + (stabfond_raw * bonus_factor)
-                stabfond = stabfond_raw * (1.0 - bonus_factor)
-                drive = drive_raw
-
-            if wife_cash < 55000.0:
-                deficit_wife = 55000.0 - wife_cash
-                deduct_monuments = min(deficit_wife, monuments)
-                monuments -= deduct_monuments
-                rem_deficit = deficit_wife - deduct_monuments
-                
-                if rem_deficit > 0:
-                    sum_funds = auto + holidays + stabfond + cushion + health
-                    if sum_funds > 0:
-                        auto -= rem_deficit * (auto / sum_funds)
-                        holidays -= rem_deficit * (holidays / sum_funds)
-                        stabfond -= rem_deficit * (stabfond / sum_funds)
-                        cushion -= rem_deficit * (cushion / sum_funds)
-                        health -= rem_deficit * (health / sum_funds)
-                wife_cash = 55000.0
+            # Все «хвосты» округлений суммируются и направляются в Подушку безопасности
+            allocated_except_cushion = r_pocket + r_drive + r_holidays + r_health + r_auto + r_monuments + r_masya_school
+            r_cushion = c7 - allocated_except_cushion
 
             report = (
                 f"📊 **РАСЧЕТ ОСНОВНОГО ДОХОДА ({income:,.0f} ₽)**\n"
@@ -226,16 +175,93 @@ def process_cash(message):
                 f"💵 **Наличные (От продаж):**\n"
                 f"└ 👩 Жене наличными (60%): **{wife_cash:,.0f} ₽**\n"
                 f"└ 🧔 Твоя чистая доля (40%): **{c7:,.0f} ₽**\n\n"
-                f"🗂 **Распределение по твоим конвертам:**\n"
-                f"🛍 Конверт «Карман» (каскад): **{pocket:,.0f} ₽**\n"
-                f"🏎 Конверт «Драйв» (динамика): **{drive:,.0f} ₽**\n"
-                f"🎉 Фонд праздников: **{holidays:,.0f} ₽**\n"
-                f"🩺 Конверт «Здоровье»: **{health:,.0f} ₽**\n"
-                f"🚗 Автофонд: **{auto:,.0f} ₽**\n"
-                f"🎒 Мася школа: **{masya_school:,.0f} ₽**\n"
-                f"🏦 Конверт «Подушка»: **{cushion:,.0f} ₽**\n"
-                f"🪦 Конверт «Памятники»: **{monuments:,.0f} ₽**\n"
-                f"🛡️ Резерв («Стабфонд» схемы): **{stabfond:,.0f} ₽**"
+                f"🗂 **Распределение по конвертам (округлено до 10 ₽):**\n"
+                f"🛍 Конверт «Карман»: **{r_pocket:,.0f} ₽**\n"
+                f"🏎 Конверт «Драйв»: **{r_drive:,.0f} ₽**\n"
+                f"🎉 Фонд праздников: **{r_holidays:,.0f} ₽**\n"
+                f"🩺 Конверт «Здоровье»: **{r_health:,.0f} ₽**\n"
+                f"🚗 Автофонд: **{r_auto:,.0f} ₽**\n"
+                f"🎒 Мася школа: **{r_masya_school:,.0f} ₽**\n"
+                f"🪦 Конверт «Памятники»: **{r_monuments:,.0f} ₽**\n"
+                f"🏦 Конверт «Подушка» (+остатки): **{r_cushion:,.0f} ₽** 🔥"
+            )
+            bot.send_message(message.chat.id, report, parse_mode='Markdown')
+
+        else:
+            mode_name = "♾ Градиентный Жирный режим"
+            
+            holidays_raw = 5750.0 if holiday_target_this_month > 0 else 0.0
+            health = 2000.0
+            auto = 5000.0
+            monuments = 2000.0
+            
+            # Стабфонд ликвидирован, его 15% уходят напрямую в Подушку безопасности
+            cushion_raw_share = (c7 - 14750.0) * 0.15 
+            free_remainder = (c7 - 14750.0) * 0.85
+            
+            masya_school = free_remainder * 0.10
+            personal_pool = free_remainder * 0.90
+            
+            pocket_raw = personal_pool * 0.60
+            drive_raw = 3000.0 + (personal_pool * 0.20)
+            cushion_from_pool = personal_pool * 0.20
+            
+            cushion = cushion_raw_share + cushion_from_pool
+            if holiday_target_this_month == 0:
+                cushion += 5750.0 # Праздники текущего месяца также ушли в подушку
+                
+            holidays = holidays_raw
+
+            target_floor = 15000.0
+            if pocket_raw < target_floor:
+                pocket_deficit = target_floor - pocket_raw
+                buffer_pool = drive_raw + cushion_raw_share
+                if buffer_pool > 0:
+                    extract_factor = min(1.0, pocket_deficit / buffer_pool)
+                    allocated_from_buffer = buffer_pool * extract_factor
+                    
+                    share_drive = drive_raw / buffer_pool
+                    share_cushion = cushion_raw_share / buffer_pool
+                    
+                    drive = drive_raw - (allocated_from_buffer * share_drive)
+                    cushion -= (allocated_from_buffer * share_cushion)
+                    pocket = pocket_raw + allocated_from_buffer
+                else:
+                    drive, pocket = drive_raw, pocket_raw
+            else:
+                bonus_factor = 0.15 * (1.0 - math.exp(-(pocket_raw - target_floor)/20000.0))
+                pocket = pocket_raw + (cushion_raw_share * bonus_factor)
+                cushion -= (cushion_raw_share * bonus_factor)
+                drive = drive_raw
+
+            # ПРИМЕНЕНИЕ УМНОГО ОКРУГЛЕНИЯ ДО 10 РУБЛЕЙ
+            r_pocket = math.floor(pocket / 10) * 10
+            r_drive = math.floor(drive / 10) * 10
+            r_holidays = math.floor(holidays / 10) * 10
+            r_health = math.floor(health / 10) * 10
+            r_auto = math.floor(auto / 10) * 10
+            r_monuments = math.floor(monuments / 10) * 10
+            r_masya_school = math.floor(masya_school / 10) * 10
+            
+            # Все «хвосты» округлений уходят в Подушку
+            allocated_except_cushion = r_pocket + r_drive + r_holidays + r_health + r_auto + r_monuments + r_masya_school
+            r_cushion = c7 - allocated_except_cushion
+
+            report = (
+                f"📊 **РАСЧЕТ ОСНОВНОГО ДОХОДА ({income:,.0f} ₽)**\n"
+                f"⚙️ Режим твоей доли: `{mode_name}`\n\n"
+                f"💵 **Наличные (От продаж):**\n"
+                f"└ 👩 Жене наличными (60%): **{wife_cash:,.0f} ₽**\n"
+                f"└ 🧔 Твоя чистая доля (40%): **{c7:,.0f} ₽**\n\n"
+                f"🗂 **Распределение по твоим конвертам (округлено до 10 ₽):**\n"
+                f"🛍 Конверт «Карман» (каскад): **{r_pocket:,.0f} ₽**\n"
+                f"🏎 Конверт «Драйв» (динамика): **{r_drive:,.0f} ₽**\n"
+                f"🎉 Фонд праздников: **{r_holidays:,.0f} ₽**\n"
+                f"🩺 Конверт «Здоровье»: **{r_health:,.0f} ₽**\n"
+                f"🚗 Автофонд: **{r_auto:,.0f} ₽**\n"
+                f"🎒 Мася школа: **{r_masya_school:,.0f} ₽**\n"
+                f"🪦 Конверт «Памятники»: **{r_monuments:,.0f} ₽**\n"
+                f"🏦 Конверт «Подушка» (+Сверхкапитал и хвосты): **{r_cushion:,.0f} ₽** 🔥"
             )
             bot.send_message(message.chat.id, report, parse_mode='Markdown')
             
@@ -257,22 +283,25 @@ def process_side(message):
             bot.register_next_step_handler(msg, process_side)
             return
         
-        pocket, drive, credit, school, holidays, cushion, stab = [0.0] * 7
+        pocket, drive, credit, school, holidays, cushion = [0.0] * 6
         
         # РАСЧЕТ КОЭФФИЦИЕНТОВ (Везде сумма строго равна 1.00)
         if e2 <= 2000:
             level_name = "🌱 Микро (до 2к)"
-            # ИСПРАВЛЕНО: Кредит, праздники, подушка и стаб ушли под нож. Суммы теперь крупные.
-            p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion, p_stab = 0.70, 0.20, 0.00, 0.10, 0.00, 0.00, 0.00
+            # Стабфонд перенесен в Подушку. Досрочка кредита и Подушка возвращены в строй.
+            p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion = 0.45, 0.15, 0.25, 0.10, 0.00, 0.05
         elif e2 <= 5000:
             level_name = "📈 Стандарт (2к - 5к)"
-            p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion, p_stab = 0.43, 0.15, 0.25, 0.10, 0.03, 0.03, 0.01
+            # Бывший 1% Стабфонда объединен с Подушкой (стало 0.04)
+            p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion = 0.43, 0.15, 0.25, 0.10, 0.03, 0.04
         elif e2 <= 8000:
             level_name = "🚀 Профи (5к - 8к)"
-            p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion, p_stab = 0.45, 0.15, 0.25, 0.12, 0.03, 0.03, 0.02
+            # Бывшие 2% Стабфонда объединены с Подушкой (стало 0.05)
+            p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion = 0.45, 0.15, 0.25, 0.12, 0.03, 0.05
         else:
             level_name = "🔥 Турбо-Досрочка (Выше 8к)"
-            p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion, p_stab = 0.50, 0.15, 0.20, 0.12, 0.03, 0.03, 0.02
+            # Бывшие 2% Стабфонда объединены с Подушкой (стало 0.05)
+            p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion = 0.50, 0.15, 0.20, 0.12, 0.03, 0.05
 
         pocket = e2 * p_pocket
         drive = e2 * p_drive
@@ -280,26 +309,41 @@ def process_side(message):
         school = e2 * p_school
         holidays = e2 * p_holidays
         cushion = e2 * p_cushion
-        stab = e2 * p_stab
+
+        # ПРИМЕНЕНИЕ УМНОГО ОКРУГЛЕНИЯ ДО 10 РУБЛЕЙ
+        r_pocket = math.floor(pocket / 10) * 10
+        r_drive = math.floor(drive / 10) * 10
+        r_school = math.floor(school / 10) * 10
+        r_holidays = math.floor(holidays / 10) * 10
+        
+        # Распределяем остатки округления в зависимости от наличия кредита в режиме
+        if p_credit > 0:
+            r_cushion = math.floor(cushion / 10) * 10
+            allocated_except_credit = r_pocket + r_drive + r_school + r_holidays + r_cushion
+            r_credit = e2 - allocated_except_credit  # Сюда падают все хвосты округления
+        else:
+            r_credit = 0
+            allocated_except_cushion = r_pocket + r_drive + r_school + r_holidays
+            r_cushion = e2 - allocated_except_cushion  # Если кредита нет (например, кастомный режим), хвосты идут в подушку
 
         report = (
             f"🚀 **РАСЧЕТ ПОДРАБОТКИ ({e2:,.0f} ₽)**\n"
             f"⚡ Уровень дохода: `{level_name}`\n\n"
         )
         
-        if credit > 0:
-            report += f"📉 **ДОСРОЧКА КРЕДИТА:** **{credit:,.0f} ₽** 🔥\n\n"
+        if r_credit > 0:
+            report += f"📉 **ДОСРОЧКА КРЕДИТА (+остатки округления):** **{r_credit:,.0f} ₽** 🔥\n\n"
 
         report += (
-            f"🗂 **В твои конверты:**\n"
-            f"🛍 Конверт «Карман»: **{pocket:,.0f} ₽**\n"
-            f"🏎 Конверт «Драйв»: **{drive:,.0f} ₽**\n"
-            f"🎒 Конверт «Мася школа»: **{school:,.0f} ₽**\n"
+            f"🗂 **В твои конверты (округлено до 10 ₽):**\n"
+            f"🛍 Конверт «Карман»: **{r_pocket:,.0f} ₽**\n"
+            f"🏎 Конверт «Драйв»: **{r_drive:,.0f} ₽**\n"
+            f"🎒 Конверт «Мася школа»: **{r_school:,.0f} ₽**\n"
+            f"🏦 Конверт «Подушка»: **{r_cushion:,.0f} ₽**\n"
         )
         
-        if holidays > 0: report += f"🎉 Фонд праздников: **{holidays:,.0f} ₽**\n"
-        if cushion > 0: report += f"🏦 Конверт «Подушка»: **{cushion:,.0f} ₽**\n"
-        if stab > 0: report += f"🛡️ Резерв («Стабфонд» подработок): **{stab:,.0f} ₽**"
+        if r_holidays > 0: 
+            report += f"🎉 Фонд праздников: **{r_holidays:,.0f} ₽**\n"
         
         bot.send_message(message.chat.id, report, parse_mode='Markdown')
         
