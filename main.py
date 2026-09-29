@@ -22,7 +22,7 @@ HOLIDAYS_CALENDAR = {
 }
 
 # =====================================================================
-# ФУНКЦИИ СИСТЕМЫ ХРАНЕНИЯ ДАННЫХ
+# ФУНКЦИИ СИСТЕМЫ ХРАНЕНИЯ ДАННЫХ (ИСПРАВЛЕНЫ ИНДЕКСЫ ДЛЯ СТАРТА)
 # =====================================================================
 def load_balances():
     """Загружает текущие остатки Кредита и Подушки"""
@@ -128,7 +128,7 @@ def set_cushion_balance(message):
         bot.reply_to(message, "❌ **Ошибка!** Формат: `/set_cushion 15000` (число должно быть неотрицательным)", parse_mode='Markdown')
 
 # =====================================================================
-# НАГЛЯДНЫЙ ДВУХМЕСЯЧНЫЙ ЕЖЕМЕСЯЧНЫЙ ОТЧЕТ
+# НАГЛЯДНЫЙ ДВУХМЕСЯЧНЫЙ ЕЖЕМЕСЯЧНЫЙ ОТЧЕТ (ИСПРАВЛЕНЫ ИНДЕКСЫ)
 # =====================================================================
 @bot.message_handler(func=lambda m: m.text == "⚙️ Мои Балансы и Цели")
 def show_balances_screen(message):
@@ -146,10 +146,10 @@ def show_monthly_report(message):
     current_month = now.strftime("%Y-%m")
     
     # Расчет предыдущего месяца
-    first_of_current = now.replace(day=1)
-    prev_month_date = first_of_current - round((first_of_current - first_of_current.replace(day=1)).days + 1) if (first_of_current - first_of_current.replace(day=1)).days > 0 else first_of_current - round(5)
-    prev_month_date = (now.replace(day=1) - round(5)).replace(day=1)
-    prev_month = prev_month_date.strftime("%Y-%m")
+    if now.month == 1:
+        prev_month = f"{now.year - 1}-12"
+    else:
+        prev_month = f"{now.year}-{now.month - 1:02d}"
     
     total_main, total_side, total_prev = 0.0, 0.0, 0.0
     r_pocket, r_drive, r_school, r_cushion, r_holidays, r_health, r_auto, r_monuments, r_credit, r_clothes = [0.0]*10
@@ -164,7 +164,7 @@ def show_monthly_report(message):
                 if parts[0] == prev_month:
                     total_prev += float(parts[3])
                 
-                # Сбор за текущий месяц (Исправлено сравнение)
+                # Сбор за текущий месяц
                 if parts[0] == current_month:
                     t_type = parts[2]
                     amt = float(parts[3])
@@ -355,7 +355,7 @@ def process_cash(message):
         if r_cushion > 0: report += f"🏦 Конверт «Подушка»: **{r_cushion:,.0f} ₽**"
         
         markup = types.InlineKeyboardMarkup()
-        cb_data = f"sub_main_{income}_{r_pocket}_{r_drive}_{r_masya_school}_{r_cushion}_{r_holidays}_{r_health}_{r_auto}_{r_monuments}_{r_clothes}"
+        cb_data = f"sub_main_{income}_{r_pocket}_{r_drive}_{r_school}_{r_cushion}_{r_holidays}_{r_health}_{r_auto}_{r_monuments}_{r_clothes}"
         btn = types.InlineKeyboardButton("📝 Подтвердить и записать доход", callback_data=cb_data)
         markup.add(btn)
         
@@ -385,7 +385,7 @@ def process_side(message):
 
         pocket, drive, credit, school, holidays, cushion = [0.0] * 6
         
-        # 5. ТУРБО СВЕРХДОХОД (Выше 15 000 ₽) - Добавлен фонд Праздников (5% от излишков)
+        # 5. ТУРБО СВЕРХДОХОД (Выше 15 000 ₽) - Сбалансированные отчисления
         if e2 > 15000:
             level_name = "🔥 5. ТУРБО Сверхдоход (Выше 15к)"
             pocket = 6000.0
