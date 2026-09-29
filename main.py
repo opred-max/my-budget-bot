@@ -82,7 +82,7 @@ def get_main_keyboard():
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     welcome_text = (
-        "👋 **Financial Engine v5.5 активирован.**\n"
+        "👋 **Financial Engine v5.6 активирован.**\n"
         "Сбалансирован Турбо-режим подработок и добавлен конверт Одежды.\n"
         "Реализовано автоматическое скрытие пустых конвертов.\n\n"
         "🔧 **Команды управления целями (балансами):**\n"
@@ -336,7 +336,7 @@ def process_cash(message):
     except Exception as e:
         bot.send_message(message.chat.id, "❌ Произошла непредвиденная ошибка расчетов основного дохода.")
 # =====================================================================
-# БЛОК ПОДРАБОТОК И ЗАПУСК СЕРВИСА (СБАЛАНСИРОВАННЫЕ НАКОПЛЕНИЯ)
+# БЛОК ПОДРАБОТОК И ЗАПУСК СЕРВИСА (5 УРОВНЕЙ И ДИНАМИЧЕСКИЙ ДРАЙВ)
 # =====================================================================
 @bot.message_handler(func=lambda m: m.text == "🚀 Подработка")
 def ask_side(message):
@@ -357,18 +357,18 @@ def process_side(message):
 
         pocket, drive, credit, school, holidays, cushion = [0.0] * 6
         
-        # ТУРБО СВЕРХДОХОД: «Притушили» накопления. 6к + 40% излишков идут на Карман. Подушка и Кредит снижены до 30%.
-        if e2 > 10000:
-            level_name = "🔥 ТУРБО Сверхдоход (Выше 10к)"
+        # 5. ТУРБО СВЕРХДОХОД (Выше 15 000 ₽) - Драйв стал динамическим (10% от остатка)
+        if e2 > 15000:
+            level_name = "🔥 5. ТУРБО Сверхдоход (Выше 15к)"
             pocket = 6000.0
-            drive = 1500.0
             holidays = 0.0
             
-            leftover = e2 - 7500.0
-            school = leftover * 0.10
-            rem_pool = leftover * 0.90
+            leftover = e2 - 6000.0
+            drive = leftover * 0.10      # Динамический Драйв: 10% от излишков
+            school = leftover * 0.10     # Школа: 10% от излишков
+            rem_pool = leftover * 0.80   # Свободный остаток излишков: 80%
             
-            # Распределение остатка излишков (30% кредит, 30% подушка, 40% бонус в карман)
+            # Распределение свободного остатка (30% кредит, 30% подушка, 40% бонус в карман)
             if is_credit_done and is_cushion_full:
                 pocket += rem_pool
             elif is_credit_done:
@@ -382,19 +382,19 @@ def process_side(message):
                 cushion = rem_pool * 0.30
                 pocket += rem_pool * 0.40
         else:
-            # СТАНДАРТНЫЕ СЕТКИ: Накопительные конверты существенно снижены во всех режимах
+            # СТАНДАРТНЫЕ СЕТКИ (1-4 УРОВНИ): Накопления притушены, с 3 уровня включены Праздники
             if e2 <= 2000:
-                level_name = "🌱 Микро (до 2к)"
-                # Кредит снижен до 10%, подушка до 2%. Карман забирает максимум.
+                level_name = "🌱 1. Микро (до 2к)"
                 p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion = 0.58, 0.15, 0.10, 0.10, 0.00, 0.02
             elif e2 <= 5000:
-                level_name = "📈 Стандарт (2к - 5к)"
-                # Кредит снижен до 14%, подушка до 2%.
+                level_name = "📈 2. Стандарт (2к - 5к)"
                 p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion = 0.53, 0.15, 0.14, 0.10, 0.04, 0.02
+            elif e2 <= 10000:
+                level_name = "🚀 3. Профи (5к - 10к)"
+                p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion = 0.50, 0.15, 0.15, 0.10, 0.07, 0.03
             else:
-                level_name = "🚀 Профи (5к - 8к)"
-                # Кредит снижен до 15%, подушка до 3%.
-                p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion = 0.52, 0.15, 0.15, 0.12, 0.03, 0.03
+                level_name = "⚡ 4. Мега Профи (10к - 15к)"
+                p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion = 0.48, 0.15, 0.15, 0.12, 0.06, 0.04
 
             if is_credit_done:
                 p_cushion += p_credit
