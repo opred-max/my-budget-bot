@@ -194,6 +194,11 @@ def show_monthly_report(message):
 # =====================================================================
 # ЛОГИКА ОБРАБОТКИ ВВОДА ОСНОВНОГО ДОХОДА
 # =====================================================================
+@bot.message_handler(func=lambda m: m.text == "💵 Основной доход")
+def ask_cash(message):
+    msg = bot.send_message(message.chat.id, "💵 Отлично! Введите общую сумму наличных от продаж:")
+    bot.register_next_step_handler(msg, process_cash)
+
 def process_cash(message):
     try:
         income = validate_amount(message.text)
@@ -211,7 +216,6 @@ def process_cash(message):
         pocket, drive, holidays, health, auto, cushion, monuments, masya_school = [0.0]*8
         mode_name = ""
         
-        # 1. РЕЖИМ ВЫЖИВАНИЯ (До 15 000 руб твоей доли)
         if c7 <= 15000:
             mode_name = "🟥 Уровень 1: Выживание"
             p_pocket, p_drive, p_school, p_holidays, p_health, p_auto, p_cushion, p_monuments = 0.46, 0.00, 0.10, 0.16, 0.12, 0.10, 0.06, 0.00
@@ -229,7 +233,6 @@ def process_cash(message):
             cushion = c7 * p_cushion
             monuments = c7 * p_monuments
 
-        # 2. РЕЖИМ СТАБИЛИЗАЦИИ (От 15 000 до 30 000 руб твоей доли)
         elif c7 <= 30000:
             mode_name = "🟧 Уровень 2: Стабилизация"
             p_pocket, p_drive, p_school, p_cushion, p_holidays, p_health, p_auto, p_monuments = 0.35, 0.15, 0.12, 0.10, 0.12, 0.08, 0.08, 0.00
@@ -247,7 +250,6 @@ def process_cash(message):
             auto = c7 * p_auto
             monuments = c7 * p_monuments
 
-        # 3. РЕЖИМ РАЗВИТИЯ (От 30 000 до 50 000 руб твоей доли)
         elif c7 <= 50000:
             mode_name = "🟨 Уровень 3: Развитие"
             p_pocket, p_drive, p_school, p_cushion, p_holidays, p_health, p_auto, p_monuments = 0.42, 0.10, 0.15, 0.12, 0.08, 0.05, 0.06, 0.02
@@ -265,7 +267,6 @@ def process_cash(message):
             auto = c7 * p_auto
             monuments = c7 * p_monuments
 
-        # 4. СВЕРХДОХОД / ЖИРНЫЙ РЕЖИМ (Выше 50 000 руб твоей доли)
         else:
             mode_name = "♾ Уровень 4: Жирный режим"
             holidays = 5750.0
@@ -286,12 +287,10 @@ def process_cash(message):
             else:
                 cushion = calculated_cushion
 
-        # ОТЩЕПЛЕНИЕ В КОНВЕРТ ОДЕЖДЫ (15% от кармана и 15% от школы)
         clothes = (pocket * 0.15) + (masya_school * 0.15)
         pocket = pocket * 0.85
         masya_school = masya_school * 0.85
 
-        # ПРИМЕНЕНИЕ УМНОГО ОКРУГЛЕНИЯ ДО 10 РУБЛЕЙ
         r_pocket = math.floor(pocket / 10) * 10
         r_drive = math.floor(drive / 10) * 10
         r_holidays = math.floor(holidays / 10) * 10
@@ -337,7 +336,7 @@ def process_cash(message):
     except Exception as e:
         bot.send_message(message.chat.id, "❌ Произошла непредвиденная ошибка расчетов основного дохода.")
 # =====================================================================
-# БЛОК ПОДРАБОТОК И ЗАПУСК СЕРВИСА
+# БЛОК ПОДРАБОТОК И ЗАПУСК СЕРВИСА (СБАЛАНСИРОВАННЫЕ НАКОПЛЕНИЯ)
 # =====================================================================
 @bot.message_handler(func=lambda m: m.text == "🚀 Подработка")
 def ask_side(message):
@@ -358,38 +357,44 @@ def process_side(message):
 
         pocket, drive, credit, school, holidays, cushion = [0.0] * 6
         
-        # ОБНОВЛЕННЫЙ ТУРБО СВЕРХДОХОД: Школа урезана до 10%, остальное идет в Карман
+        # ТУРБО СВЕРХДОХОД: «Притушили» накопления. 6к + 40% излишков идут на Карман. Подушка и Кредит снижены до 30%.
         if e2 > 10000:
-            level_name = "🔥 Турбо Сверхдоход (Выше 10к)"
-            pocket = 4500.0
+            level_name = "🔥 ТУРБО Сверхдоход (Выше 10к)"
+            pocket = 6000.0
             drive = 1500.0
             holidays = 0.0
             
-            leftover = e2 - 6000.0
-            school = leftover * 0.10  # Урезано с 30% до 10%
-            rem_pool = leftover * 0.90  # Направлено 90% остатка в личный пул
+            leftover = e2 - 7500.0
+            school = leftover * 0.10
+            rem_pool = leftover * 0.90
             
+            # Распределение остатка излишков (30% кредит, 30% подушка, 40% бонус в карман)
             if is_credit_done and is_cushion_full:
                 pocket += rem_pool
             elif is_credit_done:
-                cushion = rem_pool
+                pocket += rem_pool * 0.70
+                cushion = rem_pool * 0.30
             elif is_cushion_full:
-                credit = rem_pool
+                pocket += rem_pool * 0.70
+                credit = rem_pool * 0.30
             else:
-                credit = rem_pool * 0.50
-                cushion = rem_pool * 0.50
+                credit = rem_pool * 0.30
+                cushion = rem_pool * 0.30
+                pocket += rem_pool * 0.40
         else:
-            # СТАНДАРТНЫЕ СЕТКИ (Пересчитаны: сумма коэффициентов строго равна 1.0)
+            # СТАНДАРТНЫЕ СЕТКИ: Накопительные конверты существенно снижены во всех режимах
             if e2 <= 2000:
                 level_name = "🌱 Микро (до 2к)"
-                p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion = 0.45, 0.15, 0.25, 0.10, 0.00, 0.05
+                # Кредит снижен до 10%, подушка до 2%. Карман забирает максимум.
+                p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion = 0.58, 0.15, 0.10, 0.10, 0.00, 0.02
             elif e2 <= 5000:
                 level_name = "📈 Стандарт (2к - 5к)"
-                # Исправлена ошибка 105% из скрина: теперь 43% + 15% + 25% + 10% + 3% + 4% = 100%
-                p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion = 0.43, 0.15, 0.25, 0.10, 0.03, 0.04
+                # Кредит снижен до 14%, подушка до 2%.
+                p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion = 0.53, 0.15, 0.14, 0.10, 0.04, 0.02
             else:
                 level_name = "🚀 Профи (5к - 8к)"
-                p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion = 0.45, 0.15, 0.25, 0.12, 0.03, 0.05
+                # Кредит снижен до 15%, подушка до 3%.
+                p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion = 0.52, 0.15, 0.15, 0.12, 0.03, 0.03
 
             if is_credit_done:
                 p_cushion += p_credit
