@@ -128,7 +128,7 @@ def set_cushion_balance(message):
         bot.reply_to(message, "❌ **Ошибка!** Формат: `/set_cushion 15000` (число должно быть неотрицательным)", parse_mode='Markdown')
 
 # =====================================================================
-# ЭКРАНЫ СВОДОК И ОТЧЕТОВ С КОНВЕРТОМ ОДЕЖДЫ
+# НАГЛЯДНЫЙ ДВУХМЕСЯЧНЫЙ ЕЖЕМЕСЯЧНЫЙ ОТЧЕТ
 # =====================================================================
 @bot.message_handler(func=lambda m: m.text == "⚙️ Мои Балансы и Цели")
 def show_balances_screen(message):
@@ -142,8 +142,16 @@ def show_balances_screen(message):
 
 @bot.message_handler(func=lambda m: m.text == "📊 Ежемесячный отчет")
 def show_monthly_report(message):
-    current_month = datetime.now().strftime("%Y-%m")
-    total_main, total_side, total_earned = 0.0, 0.0, 0.0
+    now = datetime.now()
+    current_month = now.strftime("%Y-%m")
+    
+    # Расчет предыдущего месяца
+    first_of_current = now.replace(day=1)
+    prev_month_date = first_of_current - round((first_of_current - first_of_current.replace(day=1)).days + 1) if (first_of_current - first_of_current.replace(day=1)).days > 0 else first_of_current - round(5)
+    prev_month_date = (now.replace(day=1) - round(5)).replace(day=1)
+    prev_month = prev_month_date.strftime("%Y-%m")
+    
+    total_main, total_side, total_prev = 0.0, 0.0, 0.0
     r_pocket, r_drive, r_school, r_cushion, r_holidays, r_health, r_auto, r_monuments, r_credit, r_clothes = [0.0]*10
     
     if os.path.exists(STATS_FILE):
@@ -151,6 +159,12 @@ def show_monthly_report(message):
             for line in f:
                 parts = line.strip().split("|")
                 if len(parts) < 13: continue
+                
+                # Сбор за прошлый месяц
+                if parts[0] == prev_month:
+                    total_prev += float(parts[3])
+                
+                # Сбор за текущий месяц (Исправлено сравнение)
                 if parts[0] == current_month:
                     t_type = parts[2]
                     amt = float(parts[3])
@@ -168,27 +182,46 @@ def show_monthly_report(message):
                     r_credit += float(parts[12])
                     if len(parts) >= 14:
                         r_clothes += float(parts[13])
-                    
+                        
     total_earned = total_main + total_side
     
     msg = (
-        f"📊 **ФИНАНСОВАЯ СВОДКА ЗА ТЕКУЩИЙ МЕСЯЦ:**\n\n"
-        f"💰 **Всего подтверждено: {total_earned:,.2f} ₽**\n"
-        f" ├ Из основного дохода: {total_main:,.2f} ₽\n"
-        f" └ Из подработок: {total_side:,.2f} ₽\n\n"
-        f"🗂 **Распределено по конвертам за месяц:**\n"
+        f"📊 **ФИНАНСОВЫЙ ОТЧЕТ**\n"
+        f"📅 Период: `{current_month}`\n"
+        f"═══════════════════════════\n\n"
+        f"📈 **ДВИЖЕНИЕ КАПИТАЛА:**\n"
+        f"├ 💰 Всего вошло: **{total_earned:,.2f} ₽**\n"
+        f"├ 💵 Основной доход: {total_main:,.2f} ₽\n"
+        f"└ 🚀 Из подработок: {total_side:,.2f} ₽\n\n"
+        f"🛡️ **БЕЗОПАСНОСТЬ И БУДУЩЕЕ:**\n"
     )
     
-    if r_pocket > 0: msg += f"🛍 Карман: {r_pocket:,.0f} ₽\n"
-    if r_drive > 0: msg += f"🏎 Драйв: {r_drive:,.0f} ₽\n"
-    if r_clothes > 0: msg += f"👔 Гардероб (Шмотки): {r_clothes:,.0f} ₽\n"
-    if r_school > 0: msg += f"🎒 Мася школа: {r_school:,.0f} ₽\n"
-    if r_cushion > 0: msg += f"🏦 Подушка безопасности: {r_cushion:,.0f} ₽\n"
-    if r_credit > 0: msg += f"📉 На досрочку кредита: {r_credit:,.0f} ₽\n"
-    if r_holidays > 0: msg += f"🎉 Фонд праздников: {r_holidays:,.0f} ₽\n"
-    if r_health > 0: msg += f"🩺 Здоровье: {r_health:,.0f} ₽\n"
-    if r_auto > 0: msg += f"🚗 Автофонд: {r_auto:,.0f} ₽\n"
-    if r_monuments > 0: msg += f"🪦 Памятники: {r_monuments:,.0f} ₽"
+    sec_safe = ""
+    if r_credit > 0: sec_safe += f"├ 📉 Досрочка кредита: {r_credit:,.0f} ₽\n"
+    if r_cushion > 0: sec_safe += f"├ 🏦 Подушка безопасности: {r_cushion:,.0f} ₽\n"
+    if r_school > 0: sec_safe += f"├ 🎒 Мася школа: {r_school:,.0f} ₽\n"
+    if r_auto > 0: sec_safe += f"├ 🚗 Автофонд: {r_auto:,.0f} ₽\n"
+    if r_health > 0: sec_safe += f"├ 🩺 Здоровье: {r_health:,.0f} ₽\n"
+    if r_monuments > 0: sec_safe += f"└ 🪦 Памятники: {r_monuments:,.0f} ₽\n"
+    
+    if sec_safe: msg += sec_safe + "\n"
+    else: msg += "└ Конверты этой группы пусты\n\n"
+    
+    msg += f"🔥 **СВОБОДА И ЖИЗНЬ:**\n"
+    sec_life = ""
+    if r_pocket > 0: sec_life += f"├ 🛍 Чистый Карман: {r_pocket:,.0f} ₽\n"
+    if r_drive > 0: sec_life += f"├ 🏎 Конверт Драйв: {r_drive:,.0f} ₽\n"
+    if r_clothes > 0: sec_life += f"├ 👔 Одежда (Шмотки): {r_clothes:,.0f} ₽\n"
+    if r_holidays > 0: sec_life += f"└ 🎉 Фонд праздников: {r_holidays:,.0f} ₽\n"
+    
+    if sec_life: msg += sec_life + "\n"
+    else: msg += "└ Конверты этой группы пусты\n\n"
+    
+    msg += (
+        f"═══════════════════════════\n"
+        f"📅 **ДЛЯ СРАВНЕНИЯ:**\n"
+        f"└ ⏪ Заработано в `{prev_month}`: **{total_prev:,.2f} ₽**"
+    )
     
     bot.send_message(message.chat.id, msg, parse_mode='Markdown')
 # =====================================================================
@@ -360,7 +393,7 @@ def process_side(message):
             leftover = e2 - 6000.0
             drive = leftover * 0.10      
             school = leftover * 0.10     
-            holidays = leftover * 0.05   # Праздники: 5% от излишков
+            holidays = leftover * 0.05   
             rem_pool = leftover * 0.75   
             
             if is_credit_done and is_cushion_full:
@@ -376,14 +409,11 @@ def process_side(message):
                 cushion = rem_pool * 0.30
                 pocket += rem_pool * 0.40
         else:
-            # 1-4 УРОВНИ: Выровнены доли Кредита и Подушки в Микро и Стандарт поровну
             if e2 <= 2000:
                 level_name = "🌱 1. Микро (до 2к)"
-                # Кредит и подушка выровнены поровну (по 6% каждого)
                 p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion = 0.62, 0.10, 0.06, 0.10, 0.00, 0.06
             elif e2 <= 5000:
                 level_name = "📈 2. Стандарт (2к - 5к)"
-                # Кредит и подушка выровнены поровну (по 8% каждого)
                 p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion = 0.54, 0.15, 0.08, 0.10, 0.05, 0.08
             elif e2 <= 10000:
                 level_name = "🚀 3. Профи (5к - 10к)"
@@ -406,12 +436,10 @@ def process_side(message):
             holidays = e2 * p_holidays
             cushion = e2 * p_cushion
 
-        # ОТЩЕПЛЕНИЕ В КОНВЕРТ ОДЕЖДЫ (15% от кармана и 15% от школы)
         clothes = (pocket * 0.15) + (school * 0.15)
         pocket = pocket * 0.85
         school = school * 0.85
 
-        # ПРИМЕНЕНИЕ ОКРУГЛЕНИЯ ДО 10 РУБЛЕЙ
         r_pocket = math.floor(pocket / 10) * 10
         r_drive = math.floor(drive / 10) * 10
         r_school = math.floor(school / 10) * 10
@@ -419,7 +447,6 @@ def process_side(message):
         r_clothes = math.floor(clothes / 10) * 10
         r_cushion = math.floor(cushion / 10) * 10
 
-        # УМНЫЙ ФИЛЬТР: Если в конверт падает меньше 100 рублей — отдаем эти деньги в Карман
         overflow_to_pocket = 0.0
         if 0 < r_drive < 100:
             overflow_to_pocket += r_drive
@@ -439,11 +466,9 @@ def process_side(message):
 
         r_pocket += overflow_to_pocket
 
-        # Сведение остатка на Кредит (или дозабивание Подушки, если кредит закрыт)
         if credit > 0:
             allocated_except_credit = r_pocket + r_drive + r_school + r_holidays + r_cushion + r_clothes
             r_credit = e2 - allocated_except_credit
-            # Защита от отрицательного баланса или мелкой суммы на кредит
             if r_credit < 0:
                 r_pocket += r_credit
                 r_credit = 0.0
