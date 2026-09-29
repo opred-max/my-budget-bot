@@ -22,7 +22,7 @@ HOLIDAYS_CALENDAR = {
 }
 
 # =====================================================================
-# ФУНКЦИИ СИСТЕМЫ ХРАНЕНИЯ ДАННЫХ (ИСПРАВЛЕНЫ ИНДЕКСЫ ДЛЯ СТАРТА)
+# ФУНКЦИИ СИСТЕМЫ ХРАНЕНИЯ ДАННЫХ
 # =====================================================================
 def load_balances():
     """Загружает текущие остатки Кредита и Подушки"""
@@ -84,7 +84,7 @@ def send_welcome(message):
     welcome_text = (
         "👋 **Financial Engine v5.6 активирован.**\n"
         "Сбалансирован Турбо-режим подработок и добавлен конверт Одежды.\n"
-        "Реализовано автоматическое скрытие пустых конвертов.\n\n"
+        "Внедрен защитный каскадный фильтр мелких выплат.\n\n"
         "🔧 **Команды управления целями (балансами):**\n"
         "├ `/set_credit XXXXX` — изменить остаток долга по Кредиту\n"
         "│  (Пример: `/set_credit 125423.45`)\n"
@@ -95,7 +95,7 @@ def send_welcome(message):
     bot.send_message(message.chat.id, welcome_text, reply_markup=get_main_keyboard(), parse_mode='Markdown')
 
 # =====================================================================
-# КОМАНДЫ РУЧНОГО ИЗМЕНЕНИЯ БАЛАНСОВ (ИСПРАВЛЕНЫ ОШИБКИ ИНДЕКСАЦИИ)
+# КОМАНДЫ РУЧНОГО ИЗМЕНЕНИЯ БАЛАНСОВ
 # =====================================================================
 @bot.message_handler(commands=['set_credit'])
 def set_credit_balance(message):
@@ -128,7 +128,7 @@ def set_cushion_balance(message):
         bot.reply_to(message, "❌ **Ошибка!** Формат: `/set_cushion 15000` (число должно быть неотрицательным)", parse_mode='Markdown')
 
 # =====================================================================
-# НАГЛЯДНЫЙ ДВУХМЕСЯЧНЫЙ ЕЖЕМЕСЯЧНЫЙ ОТЧЕТ (ИСПРАВЛЕНЫ ИНДЕКСЫ)
+# НАГЛЯДНЫЙ ДВУХМЕСЯЧНЫЙ ЕЖЕМЕСЯЧНЫЙ ОТЧЕТ
 # =====================================================================
 @bot.message_handler(func=lambda m: m.text == "⚙️ Мои Балансы и Цели")
 def show_balances_screen(message):
@@ -145,7 +145,6 @@ def show_monthly_report(message):
     now = datetime.now()
     current_month = now.strftime("%Y-%m")
     
-    # Расчет предыдущего месяца
     if now.month == 1:
         prev_month = f"{now.year - 1}-12"
     else:
@@ -160,11 +159,9 @@ def show_monthly_report(message):
                 parts = line.strip().split("|")
                 if len(parts) < 13: continue
                 
-                # Сбор за прошлый месяц
                 if parts[0] == prev_month:
                     total_prev += float(parts[3])
                 
-                # Сбор за текущий месяц
                 if parts[0] == current_month:
                     t_type = parts[2]
                     amt = float(parts[3])
@@ -227,6 +224,11 @@ def show_monthly_report(message):
 # =====================================================================
 # ЛОГИКА ОБРАБОТКИ ВВОДА ОСНОВНОГО ДОХОДА
 # =====================================================================
+@bot.message_handler(func=lambda m: m.text == "💵 Основной доход")
+def ask_cash(message):
+    msg = bot.send_message(message.chat.id, "💵 Отлично! Введите общую сумму наличных от продаж:")
+    bot.register_next_step_handler(msg, process_cash)
+
 def process_cash(message):
     try:
         income = validate_amount(message.text)
@@ -364,7 +366,7 @@ def process_cash(message):
     except Exception as e:
         bot.send_message(message.chat.id, "❌ Произошла непредвиденная ошибка расчетов основного дохода.")
 # =====================================================================
-# БЛОК ПОДРАБОТОК И ЗАПУСК СЕРВИСА (ФИЛЬТР <100₽ И ВЫРАВНЕННЫЕ ДОЛИ)
+# БЛОК ПОДРАБОТОК И ЗАПУСК СЕРВИСА (ФИЛЬТР С ГАРАНТИЕЙ ШКОЛЫ)
 # =====================================================================
 @bot.message_handler(func=lambda m: m.text == "🚀 Подработка")
 def ask_side(message):
@@ -385,7 +387,7 @@ def process_side(message):
 
         pocket, drive, credit, school, holidays, cushion = [0.0] * 6
         
-        # 5. ТУРБО СВЕРХДОХОД (Выше 15 000 ₽) - Сбалансированные отчисления
+        # 5. ТУРБО СВЕРХДОХОД (Выше 15 000 ₽)
         if e2 > 15000:
             level_name = "🔥 5. ТУРБО Сверхдоход (Выше 15к)"
             pocket = 6000.0
@@ -447,13 +449,11 @@ def process_side(message):
         r_clothes = math.floor(clothes / 10) * 10
         r_cushion = math.floor(cushion / 10) * 10
 
+        # УМНЫЙ ФИЛЬТР МЕЛКИХ СУММ С ГАРАНТИЕЙ ФОНДА ШКОЛЫ
         overflow_to_pocket = 0.0
         if 0 < r_drive < 100:
             overflow_to_pocket += r_drive
             r_drive = 0.0
-        if 0 < r_school < 100:
-            overflow_to_pocket += r_school
-            r_school = 0.0
         if 0 < r_holidays < 100:
             overflow_to_pocket += r_holidays
             r_holidays = 0.0
@@ -466,16 +466,38 @@ def process_side(message):
 
         r_pocket += overflow_to_pocket
 
+        # Правило гарантированных 100 рублей в Масю школу (при наличии общего бюджета)
+        if 0 < r_school < 100:
+            needed_diff = 100.0 - r_school
+            if r_pocket >= needed_diff:
+                r_pocket -= needed_diff
+                r_school = 100.0
+            else:
+                r_pocket += r_school
+                r_school = 0.0
+        elif r_school == 0.0 and e2 >= 300.0 and (level_name.startswith("🌱") or level_name.startswith("📈")):
+            # Если по сетке 0, но это мелкий чек, принудительно даем 100р из доли кармана
+            if r_pocket >= 100.0:
+                r_pocket -= 100.0
+                r_school = 100.0
+
         if credit > 0:
             allocated_except_credit = r_pocket + r_drive + r_school + r_holidays + r_cushion + r_clothes
             r_credit = e2 - allocated_except_credit
-            if r_credit < 0:
+            # Фильтр <100 руб для досрочки кредита: убираем мелкий остаток в карман
+            if 0 < r_credit < 100:
+                r_pocket += r_credit
+                r_credit = 0.0
+            elif r_credit < 0:
                 r_pocket += r_credit
                 r_credit = 0.0
         else:
             r_credit = 0.0
             allocated_except_cushion = r_pocket + r_drive + r_school + r_holidays + r_clothes
             r_cushion = e2 - allocated_except_cushion
+            if 0 < r_cushion < 100:
+                r_pocket += r_cushion
+                r_cushion = 0.0
 
         report = (
             f"🚀 **РАСЧЕТ ПОДРАБОТКИ ({e2:,.0f} ₽)**\n"
