@@ -194,11 +194,6 @@ def show_monthly_report(message):
 # =====================================================================
 # ЛОГИКА ОБРАБОТКИ ВВОДА ОСНОВНОГО ДОХОДА
 # =====================================================================
-@bot.message_handler(func=lambda m: m.text == "💵 Основной доход")
-def ask_cash(message):
-    msg = bot.send_message(message.chat.id, "💵 Отлично! Введите общую сумму наличных от продаж:")
-    bot.register_next_step_handler(msg, process_cash)
-
 def process_cash(message):
     try:
         income = validate_amount(message.text)
@@ -336,7 +331,7 @@ def process_cash(message):
     except Exception as e:
         bot.send_message(message.chat.id, "❌ Произошла непредвиденная ошибка расчетов основного дохода.")
 # =====================================================================
-# БЛОК ПОДРАБОТОК И ЗАПУСК СЕРВИСА (5 УРОВНЕЙ И ДИНАМИЧЕСКИЙ ДРАЙВ)
+# БЛОК ПОДРАБОТОК И ЗАПУСК СЕРВИСА (ФИЛЬТР <100₽ И ВЫРАВНЕННЫЕ ДОЛИ)
 # =====================================================================
 @bot.message_handler(func=lambda m: m.text == "🚀 Подработка")
 def ask_side(message):
@@ -357,18 +352,17 @@ def process_side(message):
 
         pocket, drive, credit, school, holidays, cushion = [0.0] * 6
         
-        # 5. ТУРБО СВЕРХДОХОД (Выше 15 000 ₽) - Драйв стал динамическим (10% от остатка)
+        # 5. ТУРБО СВЕРХДОХОД (Выше 15 000 ₽) - Добавлен фонд Праздников (5% от излишков)
         if e2 > 15000:
             level_name = "🔥 5. ТУРБО Сверхдоход (Выше 15к)"
             pocket = 6000.0
-            holidays = 0.0
             
             leftover = e2 - 6000.0
-            drive = leftover * 0.10      # Динамический Драйв: 10% от излишков
-            school = leftover * 0.10     # Школа: 10% от излишков
-            rem_pool = leftover * 0.80   # Свободный остаток излишков: 80%
+            drive = leftover * 0.10      
+            school = leftover * 0.10     
+            holidays = leftover * 0.05   # Праздники: 5% от излишков
+            rem_pool = leftover * 0.75   
             
-            # Распределение свободного остатка (30% кредит, 30% подушка, 40% бонус в карман)
             if is_credit_done and is_cushion_full:
                 pocket += rem_pool
             elif is_credit_done:
@@ -382,13 +376,15 @@ def process_side(message):
                 cushion = rem_pool * 0.30
                 pocket += rem_pool * 0.40
         else:
-            # СТАНДАРТНЫЕ СЕТКИ (1-4 УРОВНИ): Накопления притушены, с 3 уровня включены Праздники
+            # 1-4 УРОВНИ: Выровнены доли Кредита и Подушки в Микро и Стандарт поровну
             if e2 <= 2000:
                 level_name = "🌱 1. Микро (до 2к)"
-                p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion = 0.58, 0.15, 0.10, 0.10, 0.00, 0.02
+                # Кредит и подушка выровнены поровну (по 6% каждого)
+                p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion = 0.62, 0.10, 0.06, 0.10, 0.00, 0.06
             elif e2 <= 5000:
                 level_name = "📈 2. Стандарт (2к - 5к)"
-                p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion = 0.53, 0.15, 0.14, 0.10, 0.04, 0.02
+                # Кредит и подушка выровнены поровну (по 8% каждого)
+                p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion = 0.54, 0.15, 0.08, 0.10, 0.05, 0.08
             elif e2 <= 10000:
                 level_name = "🚀 3. Профи (5к - 10к)"
                 p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion = 0.50, 0.15, 0.15, 0.10, 0.07, 0.03
@@ -410,22 +406,47 @@ def process_side(message):
             holidays = e2 * p_holidays
             cushion = e2 * p_cushion
 
-        # ОТЩЕПЛЕНИЕ В КОНВЕРТ ОДЕЖДЫ С ПОДРАБОТОК (15% от кармана и 15% от школы)
+        # ОТЩЕПЛЕНИЕ В КОНВЕРТ ОДЕЖДЫ (15% от кармана и 15% от школы)
         clothes = (pocket * 0.15) + (school * 0.15)
         pocket = pocket * 0.85
         school = school * 0.85
 
-        # ПРИМЕНЕНИЕ УМНОГО ОКРУГЛЕНИЯ ДО 10 РУБЛЕЙ
+        # ПРИМЕНЕНИЕ ОКРУГЛЕНИЯ ДО 10 РУБЛЕЙ
         r_pocket = math.floor(pocket / 10) * 10
         r_drive = math.floor(drive / 10) * 10
         r_school = math.floor(school / 10) * 10
         r_holidays = math.floor(holidays / 10) * 10
         r_clothes = math.floor(clothes / 10) * 10
-        
+        r_cushion = math.floor(cushion / 10) * 10
+
+        # УМНЫЙ ФИЛЬТР: Если в конверт падает меньше 100 рублей — отдаем эти деньги в Карман
+        overflow_to_pocket = 0.0
+        if 0 < r_drive < 100:
+            overflow_to_pocket += r_drive
+            r_drive = 0.0
+        if 0 < r_school < 100:
+            overflow_to_pocket += r_school
+            r_school = 0.0
+        if 0 < r_holidays < 100:
+            overflow_to_pocket += r_holidays
+            r_holidays = 0.0
+        if 0 < r_clothes < 100:
+            overflow_to_pocket += r_clothes
+            r_clothes = 0.0
+        if 0 < r_cushion < 100:
+            overflow_to_pocket += r_cushion
+            r_cushion = 0.0
+
+        r_pocket += overflow_to_pocket
+
+        # Сведение остатка на Кредит (или дозабивание Подушки, если кредит закрыт)
         if credit > 0:
-            r_cushion = math.floor(cushion / 10) * 10
             allocated_except_credit = r_pocket + r_drive + r_school + r_holidays + r_cushion + r_clothes
             r_credit = e2 - allocated_except_credit
+            # Защита от отрицательного баланса или мелкой суммы на кредит
+            if r_credit < 0:
+                r_pocket += r_credit
+                r_credit = 0.0
         else:
             r_credit = 0.0
             allocated_except_cushion = r_pocket + r_drive + r_school + r_holidays + r_clothes
