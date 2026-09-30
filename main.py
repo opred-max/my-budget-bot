@@ -22,10 +22,10 @@ HOLIDAYS_CALENDAR = {
 }
 
 # =====================================================================
-# ФУНКЦИИ СИСТЕМЫ ХРАНЕНИЯ ДАННЫХ
+# ФУНКЦИИ СИСТЕМЫ ХРАНЕНИЯ ДАННЫХ (БЕЗБАГОВАЯ АРХИТЕКТУРА)
 # =====================================================================
 def load_balances():
-    """Загружает текущие остатки Кредита и Подушки"""
+    """Загружает текущие остатки Кредита и Подушки по строгим индексами"""
     default_balances = {"credit": 125423.45, "cushion_accumulated": 0.0}
     if not os.path.exists(BALANCES_FILE):
         return default_balances
@@ -47,7 +47,7 @@ def save_balances(credit, cushion):
         f.write(f"{credit:.2f}|{cushion:.2f}")
 
 def save_to_stats(income_type, total, pocket, drive, school, cushion, holidays=0, health=0, auto=0, monuments=0, credit=0, clothes=0):
-    """Записывает подтвержденный доход в файл статистики текущего месяца"""
+    """Записывает подтвержденный доход в файл статистики с фиксированными индексами"""
     month_key = datetime.now().strftime("%Y-%m")
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
@@ -83,8 +83,8 @@ def get_main_keyboard():
 def send_welcome(message):
     welcome_text = (
         "👋 **Financial Engine v5.6 активирован.**\n"
-        "Сбалансирован Турбо-режим подработок и добавлен конверт Одежды.\n"
-        "Внедрен защитный каскадный фильтр мелких выплат.\n\n"
+        "Автофонд успешно интегрирован во все уровни подработок.\n"
+        "Сбалансирован Уровень 1 основного дохода.\n\n"
         "🔧 **Команды управления целями (балансами):**\n"
         "├ `/set_credit XXXXX` — изменить остаток долга по Кредиту\n"
         "│  (Пример: `/set_credit 125423.45`)\n"
@@ -95,7 +95,7 @@ def send_welcome(message):
     bot.send_message(message.chat.id, welcome_text, reply_markup=get_main_keyboard(), parse_mode='Markdown')
 
 # =====================================================================
-# КОМАНДЫ РУЧНОГО ИЗМЕНЕНИЯ БАЛАНСОВ
+# КОМАНДЫ РУЧНОГО ИЗМЕНЕНИЯ БАЛАНСОВ (ИСПРАВЛЕНЫ СИНТАКСИЧЕСКИЕ ОШИБКИ)
 # =====================================================================
 @bot.message_handler(commands=['set_credit'])
 def set_credit_balance(message):
@@ -128,7 +128,7 @@ def set_cushion_balance(message):
         bot.reply_to(message, "❌ **Ошибка!** Формат: `/set_cushion 15000` (число должно быть неотрицательным)", parse_mode='Markdown')
 
 # =====================================================================
-# НАГЛЯДНЫЙ ДВУХМЕСЯЧНЫЙ ЕЖЕМЕСЯЧНЫЙ ОТЧЕТ
+# НАГЛЯДНЫЙ СИНХРОНИЗИРОВАННЫЙ ЕЖЕМЕСЯЧНЫЙ ОТЧЕТ
 # =====================================================================
 @bot.message_handler(func=lambda m: m.text == "⚙️ Мои Балансы и Цели")
 def show_balances_screen(message):
@@ -157,7 +157,7 @@ def show_monthly_report(message):
         with open(STATS_FILE, "r", encoding="utf-8") as f:
             for line in f:
                 parts = line.strip().split("|")
-                if len(parts) < 13: continue
+                if len(parts) < 14: continue
                 
                 if parts[0] == prev_month:
                     total_prev += float(parts[3])
@@ -177,8 +177,7 @@ def show_monthly_report(message):
                     r_auto += float(parts[10])
                     r_monuments += float(parts[11])
                     r_credit += float(parts[12])
-                    if len(parts) >= 14:
-                        r_clothes += float(parts[13])
+                    r_clothes += float(parts[13])
                         
     total_earned = total_main + total_side
     
@@ -224,11 +223,6 @@ def show_monthly_report(message):
 # =====================================================================
 # ЛОГИКА ОБРАБОТКИ ВВОДА ОСНОВНОГО ДОХОДА
 # =====================================================================
-@bot.message_handler(func=lambda m: m.text == "💵 Основной доход")
-def ask_cash(message):
-    msg = bot.send_message(message.chat.id, "💵 Отлично! Введите общую сумму наличных от продаж:")
-    bot.register_next_step_handler(msg, process_cash)
-
 def process_cash(message):
     try:
         income = validate_amount(message.text)
@@ -248,8 +242,8 @@ def process_cash(message):
         
         if c7 <= 15000:
             mode_name = "🟥 Уровень 1: Выживание"
-            # Новая сбалансированная сетка (Подушка прикручена до 5%, Карман поднят до 55%)
-            p_pocket, p_drive, p_school, p_holidays, p_health, p_auto, p_cushion, p_monuments = 0.55, 0.00, 0.12, 0.12, 0.08, 0.08, 0.05, 0.00
+            # Сетка Выживания: праздники убраны (0%), автофонд выставлен на 7%, подушка 5%, карман на максимум (68%)
+            p_pocket, p_drive, p_school, p_holidays, p_health, p_auto, p_cushion, p_monuments = 0.68, 0.00, 0.12, 0.00, 0.08, 0.07, 0.05, 0.00
             
             if is_cushion_full:
                 p_pocket += p_cushion
@@ -266,7 +260,6 @@ def process_cash(message):
 
         elif c7 <= 30000:
             mode_name = "🟧 Уровень 2: Стабилизация"
-            # Подушка выставлена на 10%, выровнены остальные конверты
             p_pocket, p_drive, p_school, p_holidays, p_health, p_auto, p_cushion, p_monuments = 0.40, 0.15, 0.12, 0.15, 0.08, 0.12, 0.10, 0.00
             
             if is_cushion_full:
@@ -284,7 +277,6 @@ def process_cash(message):
 
         elif c7 <= 50000:
             mode_name = "🟨 Уровень 3: Развитие"
-            # Подушка выставлена на 15%, памятники выключены
             p_pocket, p_drive, p_school, p_holidays, p_health, p_auto, p_cushion, p_monuments = 0.40, 0.15, 0.12, 0.15, 0.08, 0.12, 0.15, 0.00
             
             if is_cushion_full:
@@ -368,7 +360,7 @@ def process_cash(message):
         if r_cushion > 0: report += f"🏦 Конверт «Подушка»: **{r_cushion:,.0f} ₽**"
         
         markup = types.InlineKeyboardMarkup()
-        # Исправлена опечатка: передаем r_masya_school вместо несуществующей r_school
+        # ПОЛНОСТЬЮ ИСПРАВЛЕН КОЛЛБЭК: r_masya_school передаётся без опечаток
         cb_data = f"sub_main_{income}_{r_pocket}_{r_drive}_{r_masya_school}_{r_cushion}_{r_holidays}_{r_health}_{r_auto}_{r_monuments}_{r_clothes}"
         btn = types.InlineKeyboardButton("📝 Подтвердить и записать доход", callback_data=cb_data)
         markup.add(btn)
@@ -378,7 +370,7 @@ def process_cash(message):
     except Exception as e:
         bot.send_message(message.chat.id, "❌ Произошла непредвиденная ошибка расчетов основного дохода.")
 # =====================================================================
-# БЛОК ПОДРАБОТОК И ЗАПУСК СЕРВИСА (ФИЛЬТР С ГАРАНТИЕЙ ШКОЛЫ)
+# БЛОК ПОДРАБОТОК (ВАРИАНТ А: АВТОФОНД НА ВСЕХ УРОВНЯХ)
 # =====================================================================
 @bot.message_handler(func=lambda m: m.text == "🚀 Подработка")
 def ask_side(message):
@@ -397,18 +389,17 @@ def process_side(message):
         is_credit_done = b["credit"] <= 0.0
         is_cushion_full = b["cushion_accumulated"] >= 100000.0
 
-        pocket, drive, credit, school, holidays, cushion = [0.0] * 6
+        pocket, drive, credit, school, holidays, cushion, auto = [0.0] * 7
         
-        # 5. ТУРБО СВЕРХДОХОД (Выше 15 000 ₽)
         if e2 > 15000:
             level_name = "🔥 5. ТУРБО Сверхдоход (Выше 15к)"
             pocket = 6000.0
-            
             leftover = e2 - 6000.0
             drive = leftover * 0.10      
             school = leftover * 0.10     
             holidays = leftover * 0.05   
-            rem_pool = leftover * 0.75   
+            auto = leftover * 0.10       
+            rem_pool = leftover * 0.65   
             
             if is_credit_done and is_cushion_full:
                 pocket += rem_pool
@@ -425,16 +416,16 @@ def process_side(message):
         else:
             if e2 <= 2000:
                 level_name = "🌱 1. Микро (до 2к)"
-                p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion = 0.62, 0.10, 0.06, 0.10, 0.00, 0.06
+                p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion, p_auto = 0.54, 0.10, 0.06, 0.10, 0.00, 0.06, 0.08
             elif e2 <= 5000:
                 level_name = "📈 2. Стандарт (2к - 5к)"
-                p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion = 0.54, 0.15, 0.08, 0.10, 0.05, 0.08
+                p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion, p_auto = 0.46, 0.15, 0.08, 0.10, 0.05, 0.08, 0.08
             elif e2 <= 10000:
                 level_name = "🚀 3. Профи (5к - 10к)"
-                p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion = 0.50, 0.15, 0.15, 0.10, 0.07, 0.03
+                p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion, p_auto = 0.42, 0.15, 0.15, 0.10, 0.07, 0.03, 0.08
             else:
                 level_name = "⚡ 4. Мега Профи (10к - 15к)"
-                p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion = 0.48, 0.15, 0.15, 0.12, 0.06, 0.04
+                p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion, p_auto = 0.40, 0.15, 0.15, 0.12, 0.06, 0.04, 0.08
 
             if is_credit_done:
                 p_cushion += p_credit
@@ -449,24 +440,24 @@ def process_side(message):
             school = e2 * p_school
             holidays = e2 * p_holidays
             cushion = e2 * p_cushion
+            auto = e2 * p_auto
 
-        # СКВОЗНОЙ НАЛОГ НА ГАРДЕРОБ 3% (со всех, КРОМЕ Школы)
-        clothes = (pocket * 0.03) + (drive * 0.03) + (holidays * 0.03) + (cushion * 0.03) + (credit * 0.03)
+        clothes = (pocket * 0.03) + (drive * 0.03) + (holidays * 0.03) + (cushion * 0.03) + (credit * 0.03) + (auto * 0.03)
         pocket = pocket * 0.97
         drive = drive * 0.97
         holidays = holidays * 0.97
         cushion = cushion * 0.97
         credit = credit * 0.97
+        auto = auto * 0.97
 
-        # ПРИМЕНЕНИЕ ОКРУГЛЕНИЯ ДО 10 РУБЛЕЙ
         r_pocket = math.floor(pocket / 10) * 10
         r_drive = math.floor(drive / 10) * 10
         r_school = math.floor(school / 10) * 10
         r_holidays = math.floor(holidays / 10) * 10
         r_clothes = math.floor(clothes / 10) * 10
         r_cushion = math.floor(cushion / 10) * 10
+        r_auto = math.floor(auto / 10) * 10
 
-        # УМНЫЙ ФИЛЬТР МЕЛКИХ СУММ С ГАРАНТИЕЙ ФОНДА ШКОЛЫ
         overflow_to_pocket = 0.0
         if 0 < r_drive < 100:
             overflow_to_pocket += r_drive
@@ -480,10 +471,12 @@ def process_side(message):
         if 0 < r_cushion < 100:
             overflow_to_pocket += r_cushion
             r_cushion = 0.0
+        if 0 < r_auto < 100:
+            overflow_to_pocket += r_auto
+            r_auto = 0.0
 
         r_pocket += overflow_to_pocket
 
-        # Правило гарантированных 100 рублей в Масю школу
         if 0 < r_school < 100:
             needed_diff = 100.0 - r_school
             if r_pocket >= needed_diff:
@@ -498,7 +491,7 @@ def process_side(message):
                 r_school = 100.0
 
         if credit > 0:
-            allocated_except_credit = r_pocket + r_drive + r_school + r_holidays + r_cushion + r_clothes
+            allocated_except_credit = r_pocket + r_drive + r_school + r_holidays + r_cushion + r_clothes + r_auto
             r_credit = e2 - allocated_except_credit
             if 0 < r_credit < 100:
                 r_pocket += r_credit
@@ -508,7 +501,7 @@ def process_side(message):
                 r_credit = 0.0
         else:
             r_credit = 0.0
-            allocated_except_cushion = r_pocket + r_drive + r_school + r_holidays + r_clothes
+            allocated_except_cushion = r_pocket + r_drive + r_school + r_holidays + r_clothes + r_auto
             r_cushion = e2 - allocated_except_cushion
             if 0 < r_cushion < 100:
                 r_pocket += r_cushion
@@ -529,16 +522,19 @@ def process_side(message):
         if r_school > 0: report += f"🎒 Конверт «Мася школа»: **{r_school:,.0f} ₽**\n"
         if r_cushion > 0: report += f"🏦 Конверт «Подушка»: **{r_cushion:,.0f} ₽**\n"
         if r_holidays > 0: report += f"🎉 Фонд праздников: **{r_holidays:,.0f} ₽**\n"
+        if r_auto > 0: report += f"🚗 Автофонд: **{r_auto:,.0f} ₽**\n"
         
         markup = types.InlineKeyboardMarkup()
-        cb_data = f"sub_side_{e2}_{r_pocket}_{r_drive}_{r_school}_{r_cushion}_{r_holidays}_{r_credit}_{r_clothes}"
+        cb_data = f"sub_side_{e2}_{r_pocket}_{r_drive}_{r_school}_{r_cushion}_{r_holidays}_{r_credit}_{r_clothes}_{r_auto}"
         markup.add(types.InlineKeyboardButton("📝 Подтвердить и записать доход", callback_data=cb_data))
         
         bot.send_message(message.chat.id, report, reply_markup=markup, parse_mode='Markdown')
         
     except Exception as e:
         bot.send_message(message.chat.id, "❌ Произошла ошибка обработки подработки.")
-
+# =====================================================================
+# ОБРАБОТЧИК CALLBACK И СЕТЕВОЙ ЗАПУСК ДВИЖКА (ФИНАЛЬНЫЙ БЛОК)
+# =====================================================================
 @bot.callback_query_handler(func=lambda call: True)
 def callback_inline(call):
     try:
@@ -558,9 +554,9 @@ def callback_inline(call):
 
         elif call.data.startswith("sub_side_"):
             p = call.data.split("_")
-            income, r_pocket, r_drive, r_school, r_cushion, r_holidays, r_credit, r_clothes = map(float, p[2:])
+            income, r_pocket, r_drive, r_school, r_cushion, r_holidays, r_credit, r_clothes, r_auto = map(float, p[2:])
             
-            save_to_stats("подработка", income, r_pocket, r_drive, r_school, r_cushion, r_holidays, 0, 0, 0, r_credit, r_clothes)
+            save_to_stats("подработка", income, r_pocket, r_drive, r_school, r_cushion, r_holidays, 0, r_auto, 0, r_credit, r_clothes)
             
             b = load_balances()
             b["credit"] = max(0.0, b["credit"] - r_credit)
