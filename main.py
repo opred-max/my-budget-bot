@@ -22,10 +22,10 @@ HOLIDAYS_CALENDAR = {
 }
 
 # =====================================================================
-# ФУНКЦИИ СИСТЕМЫ ХРАНЕНИЯ ДАННЫХ (БЕЗБАГОВАЯ АРХИТЕКТУРА)
+# ФУНКЦИИ СИСТЕМЫ ХРАНЕНИЯ ДАННЫХ
 # =====================================================================
 def load_balances():
-    """Загружает текущие остатки Кредита и Подушки по строгим индексами"""
+    """Загружает текущие остатки Кредита и Подушки"""
     default_balances = {"credit": 125423.45, "cushion_accumulated": 0.0}
     if not os.path.exists(BALANCES_FILE):
         return default_balances
@@ -47,7 +47,7 @@ def save_balances(credit, cushion):
         f.write(f"{credit:.2f}|{cushion:.2f}")
 
 def save_to_stats(income_type, total, pocket, drive, school, cushion, holidays=0, health=0, auto=0, monuments=0, credit=0, clothes=0):
-    """Записывает подтвержденный доход в файл статистики с фиксированными индексами"""
+    """Записывает подтвержденный доход в файл статистики"""
     month_key = datetime.now().strftime("%Y-%m")
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
@@ -95,7 +95,7 @@ def send_welcome(message):
     bot.send_message(message.chat.id, welcome_text, reply_markup=get_main_keyboard(), parse_mode='Markdown')
 
 # =====================================================================
-# КОМАНДЫ РУЧНОГО ИЗМЕНЕНИЯ БАЛАНСОВ (ИСПРАВЛЕНЫ СИНТАКСИЧЕСКИЕ ОШИБКИ)
+# КОМАНДЫ РУЧНОГО ИЗМЕНЕНИЯ БАЛАНСОВ
 # =====================================================================
 @bot.message_handler(commands=['set_credit'])
 def set_credit_balance(message):
@@ -126,9 +126,8 @@ def set_cushion_balance(message):
         bot.reply_to(message, f"✅ Баланс Подушки безопасности изменен на: **{val:,.2f} ₽**", parse_mode='Markdown')
     except:
         bot.reply_to(message, "❌ **Ошибка!** Формат: `/set_cushion 15000` (число должно быть неотрицательным)", parse_mode='Markdown')
-
 # =====================================================================
-# НАГЛЯДНЫЙ СИНХРОНИЗИРОВАННЫЙ ЕЖЕМЕСЯЧНЫЙ ОТЧЕТ
+# НАГЛЯДНЫЙ ДВУХМЕСЯЧНЫЙ ЕЖЕМЕСЯЧНЫЙ ОТЧЕТ
 # =====================================================================
 @bot.message_handler(func=lambda m: m.text == "⚙️ Мои Балансы и Цели")
 def show_balances_screen(message):
@@ -220,9 +219,14 @@ def show_monthly_report(message):
     )
     
     bot.send_message(message.chat.id, msg, parse_mode='Markdown')
+
 # =====================================================================
 # ЛОГИКА ОБРАБОТКИ ВВОДА ОСНОВНОГО ДОХОДА
 # =====================================================================
+@bot.message_handler(func=lambda m: m.text == "💵 Основной доход")
+def ask_cash(message):
+    msg = bot.send_message(message.chat.id, "💵 Отлично! Введите общую сумму наличных от продаж:")
+    bot.register_next_step_handler(msg, process_cash)
 def process_cash(message):
     try:
         income = validate_amount(message.text)
@@ -242,7 +246,6 @@ def process_cash(message):
         
         if c7 <= 15000:
             mode_name = "🟥 Уровень 1: Выживание"
-            # Сетка Выживания: праздники убраны (0%), автофонд выставлен на 7%, подушка 5%, карман на максимум (68%)
             p_pocket, p_drive, p_school, p_holidays, p_health, p_auto, p_cushion, p_monuments = 0.68, 0.00, 0.12, 0.00, 0.08, 0.07, 0.05, 0.00
             
             if is_cushion_full:
@@ -312,7 +315,6 @@ def process_cash(message):
             else:
                 cushion = calculated_cushion
 
-        # СКВОЗНОЙ НАЛОГ 3% НА ОДЕЖДУ (со всех конвертов, КРОМЕ Мася школа)
         clothes = (pocket * 0.03) + (drive * 0.03) + (holidays * 0.03) + (health * 0.03) + (auto * 0.03) + (cushion * 0.03) + (monuments * 0.03)
         pocket = pocket * 0.97
         drive = drive * 0.97
@@ -322,7 +324,6 @@ def process_cash(message):
         cushion = cushion * 0.97
         monuments = monuments * 0.97
 
-        # МАТЕМАТИЧЕСКОЕ ОКРУГЛЕНИЕ ДО КРУГЛЫХ 10 РУБЛЕЙ В МЕНЬШУЮ СТОРОНУ
         r_pocket = math.floor(pocket / 10) * 10
         r_drive = math.floor(drive / 10) * 10
         r_holidays = math.floor(holidays / 10) * 10
@@ -332,7 +333,6 @@ def process_cash(message):
         r_masya_school = math.floor(masya_school / 10) * 10
         r_clothes = math.floor(clothes / 10) * 10
         
-        # Сведение копеек и остатков баланса на Подушку (или на Карман, если подушка забита)
         allocated_except_cushion = r_pocket + r_drive + r_holidays + r_health + r_auto + r_monuments + r_masya_school + r_clothes
         if is_cushion_full:
             r_pocket += (c7 - allocated_except_cushion)
@@ -360,7 +360,6 @@ def process_cash(message):
         if r_cushion > 0: report += f"🏦 Конверт «Подушка»: **{r_cushion:,.0f} ₽**"
         
         markup = types.InlineKeyboardMarkup()
-        # ПОЛНОСТЬЮ ИСПРАВЛЕН КОЛЛБЭК: r_masya_school передаётся без опечаток
         cb_data = f"sub_main_{income}_{r_pocket}_{r_drive}_{r_masya_school}_{r_cushion}_{r_holidays}_{r_health}_{r_auto}_{r_monuments}_{r_clothes}"
         btn = types.InlineKeyboardButton("📝 Подтвердить и записать доход", callback_data=cb_data)
         markup.add(btn)
@@ -370,7 +369,7 @@ def process_cash(message):
     except Exception as e:
         bot.send_message(message.chat.id, "❌ Произошла непредвиденная ошибка расчетов основного дохода.")
 # =====================================================================
-# БЛОК ПОДРАБОТОК (ВАРИАНТ А: АВТОФОНД НА ВСЕХ УРОВНЯХ)
+# БЛОК ПОДРАБОТОК (ВАРИАНТ А: АВТОФОНД НА ВСЕХ УРОВНЯХ) И ЗАПУСК БОТА
 # =====================================================================
 @bot.message_handler(func=lambda m: m.text == "🚀 Подработка")
 def ask_side(message):
@@ -394,6 +393,7 @@ def process_side(message):
         if e2 > 15000:
             level_name = "🔥 5. ТУРБО Сверхдоход (Выше 15к)"
             pocket = 6000.0
+            
             leftover = e2 - 6000.0
             drive = leftover * 0.10      
             school = leftover * 0.10     
@@ -532,9 +532,7 @@ def process_side(message):
         
     except Exception as e:
         bot.send_message(message.chat.id, "❌ Произошла ошибка обработки подработки.")
-# =====================================================================
-# ОБРАБОТЧИК CALLBACK И СЕТЕВОЙ ЗАПУСК ДВИЖКА (ФИНАЛЬНЫЙ БЛОК)
-# =====================================================================
+
 @bot.callback_query_handler(func=lambda call: True)
 def callback_inline(call):
     try:
