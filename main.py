@@ -81,8 +81,8 @@ def get_main_keyboard():
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     welcome_text = (
-        "👋 **Financial Engine v5.7 [PROD_READY] активирован.**\n"
-        "Успешно ликвидирован баг локальных областей Жирного режима.\n"
+        "👋 **Financial Engine v5.7 [STABLE_PROD] активирован.**\n"
+        "Исправлена изоляция локальных переменных Жирного режима.\n"
         "Синхронизированы сквозные 3% налоги на Одежду по всем уровням.\n\n"
         "🔧 **Команды управления целями (балансами):**\n"
         "├ `/set_credit XXXXX` — изменить остаток долга по Кредиту\n"
@@ -181,7 +181,7 @@ def show_monthly_report(message):
     
     msg = (
         f"📊 **ФИНАНСОВЫЙ ОТЧЕТ**\n"
-        f"📅 Период: `{current_month}`\n"
+        f"📅 Period: `{current_month}`\n"
         f"═══════════════════════════\n\n"
         f"📈 **ДВИЖЕНИЕ КАПИТАЛА:**\n"
         f"├ 💰 Всего вошло: **{total_earned:,.2f} ₽**\n"
@@ -240,7 +240,7 @@ def process_cash(message):
         wife_cash = income * 0.60
         c7 = income * 0.40
         
-        # ЖЕСТКАЯ ДЕКЛАРАЦИЯ ПЕРЕМЕННЫХ НА СТАРТЕ ДЛЯ ЗАЩИТЫ ОТ UNBOUNDLOCALERROR
+        # ЖЕСТКАЯ ДЕКЛАРАЦИЯ ВСЕХ КОНВЕРТОВ НА СТАРТЕ ФУНКЦИИ (АНТИ-ОШИБКА ОБЛАСТИ ВИДИМОСТИ)
         pocket, drive, holidays, health, auto, cushion, monuments, masya_school = [0.0]*8
         mode_name = ""
         
@@ -314,7 +314,7 @@ def process_cash(message):
                 cushion = leftover * 0.20
                 pocket = leftover * 0.50
 
-        # СКВОЗНОЙ НАЛОГ 3% НА ОДЕЖДУ (со всех конвертов, КРОМЕ Мася школа)
+        # СКВОЗНОЙ НАЛОГ 3% НА ОДЕЖДУ (ТЕПЕРЬ ВСЕ ПЕРЕМЕННЫЕ ГАРАНТИРОВАННО ИНИЦИАЛИЗИРОВАНЫ)
         clothes = (pocket * 0.03) + (drive * 0.03) + (holidays * 0.03) + (health * 0.03) + (auto * 0.03) + (cushion * 0.03) + (monuments * 0.03)
         pocket = pocket * 0.97
         drive = drive * 0.97
@@ -333,7 +333,7 @@ def process_cash(message):
         r_clothes = math.floor(clothes / 10) * 10
         r_cushion = math.floor(cushion / 10) * 10
         
-        # БАЛАНСИР ПЕРЕНЕСЕН В КАРМАН: Сглаживает копейки, защищая от переполнения
+        # КАРМАН СЛУЖИТ БАЛАНСИРОМ КОПЕЕК ОКРУГЛЕНИЯ
         allocated_except_pocket = r_drive + r_holidays + r_health + r_auto + r_monuments + r_masya_school + r_clothes + r_cushion
         r_pocket = c7 - allocated_except_pocket
 
@@ -366,7 +366,7 @@ def process_cash(message):
     except Exception as e:
         bot.send_message(message.chat.id, "❌ Произошла непредвиденная ошибка расчетов основного дохода.\n(Code: `ERR_CASH_CALC`)")
 # =====================================================================
-# БЛОК ПОДРАБОТОК И ЗАПУСК СЕРВИСА (ФИНАЛЬНЫЙ СТАБИЛЬНЫЙ КУСОК)
+# БЛОК ПОДРАБОТОК И ЗАПУСК СЕРВИСА (CODE: ERR_SIDE_ENGINE)
 # =====================================================================
 @bot.message_handler(func=lambda m: m.text == "🚀 Подработка")
 def ask_side(message):
