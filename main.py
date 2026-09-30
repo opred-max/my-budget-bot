@@ -81,9 +81,9 @@ def get_main_keyboard():
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     welcome_text = (
-        "👋 **Financial Engine v5.7 [STABLE_PROD] активирован.**\n"
-        "Исправлена изоляция локальных переменных Жирного режима.\n"
-        "Синхронизированы сквозные 3% налоги на Одежду по всем уровням.\n\n"
+        "👋 **Financial Engine v5.7 [PROD] активирован.**\n"
+        "Границы бюджетов выведены в названия уровней от общего дохода.\n"
+        "На уровне Развития добавлены Памятники. На уровне Жирный включены лимиты.\n\n"
         "🔧 **Команды управления целями (балансами):**\n"
         "├ `/set_credit XXXXX` — изменить остаток долга по Кредиту\n"
         "│  (Пример: `/set_credit 125423.45`)\n"
@@ -181,7 +181,7 @@ def show_monthly_report(message):
     
     msg = (
         f"📊 **ФИНАНСОВЫЙ ОТЧЕТ**\n"
-        f"📅 Period: `{current_month}`\n"
+        f"📅 Период: `{current_month}`\n"
         f"═══════════════════════════\n\n"
         f"📈 **ДВИЖЕНИЕ КАПИТАЛА:**\n"
         f"├ 💰 Всего вошло: **{total_earned:,.2f} ₽**\n"
@@ -240,12 +240,13 @@ def process_cash(message):
         wife_cash = income * 0.60
         c7 = income * 0.40
         
-        # ЖЕСТКАЯ ДЕКЛАРАЦИЯ ВСЕХ КОНВЕРТОВ НА СТАРТЕ ФУНКЦИИ (АНТИ-ОШИБКА ОБЛАСТИ ВИДИМОСТИ)
+        # ГЛОБАЛЬНАЯ ИНИЦИАЛИЗАЦИЯ ВСЕХ КОНВЕРТОВ НА СТАРТЕ РАСЧЕТА
         pocket, drive, holidays, health, auto, cushion, monuments, masya_school = [0.0]*8
         mode_name = ""
         
-        if c7 <= 15000:
-            mode_name = "🟥 Уровень 1: Выживание"
+        # ОПРЕДЕЛЕНИЕ УРОВНЕЙ ПО ОБЩЕМУ ДОХОДУ (ОБЩАЯ КАССА)
+        if income <= 37500:
+            mode_name = "🟥 Уровень 1: Выживание (до 37.5к)"
             p_pocket, p_drive, p_school, p_holidays, p_health, p_auto, p_cushion, p_monuments = 0.68, 0.00, 0.12, 0.00, 0.08, 0.07, 0.05, 0.00
             
             if is_cushion_full:
@@ -261,8 +262,8 @@ def process_cash(message):
             cushion = c7 * p_cushion
             monuments = c7 * p_monuments
 
-        elif c7 <= 30000:
-            mode_name = "🟧 Уровень 2: Стабилизация"
+        elif income <= 75000:
+            mode_name = "🟧 Уровень 2: Стабилизация (от 37.5к до 75к)"
             p_pocket, p_drive, p_school, p_holidays, p_health, p_auto, p_cushion, p_monuments = 0.40, 0.15, 0.12, 0.15, 0.08, 0.12, 0.10, 0.00
             
             if is_cushion_full:
@@ -278,9 +279,10 @@ def process_cash(message):
             auto = c7 * p_auto
             monuments = c7 * p_monuments
 
-        elif c7 <= 50000:
-            mode_name = "🟨 Уровень 3: Развитие"
-            p_pocket, p_drive, p_school, p_holidays, p_health, p_auto, p_cushion, p_monuments = 0.51, 0.15, 0.12, 0.10, 0.06, 0.10, 0.10, 0.00
+        elif income <= 125000:
+            mode_name = "🟨 Уровень 3: Развитие (от 75к до 125к)"
+            # ДОБАВЛЕНЫ ПАМЯТНИКИ (5%) ЗА СЧЕТ ПОДУШКИ (-3%), КАРМАНА (-1%) И ДРАЙВА (-1%)
+            p_pocket, p_drive, p_school, p_holidays, p_health, p_auto, p_cushion, p_monuments = 0.50, 0.14, 0.12, 0.10, 0.06, 0.10, 0.07, 0.05
             
             if is_cushion_full:
                 p_pocket += p_cushion
@@ -296,25 +298,33 @@ def process_cash(message):
             monuments = c7 * p_monuments
 
         else:
-            mode_name = "♾ Уровень 4: Жирный режим"
-            holidays = 5750.0
-            health = 2000.0
-            auto = 5000.0
-            monuments = 2000.0
-            
-            leftover = c7 - 14750.0
-            
-            masya_school = leftover * 0.20
-            drive = leftover * 0.10
+            mode_name = "♾ Уровень 4: Жирный режим (выше 125к)"
+            # ПОЛНЫЙ ПЕРЕХОД НА ПРОЦЕНТНУЮ СЕТКУ ДЛЯ СХОДИМОСТИ СВЕРХДОХОДОВ
+            p_pocket, p_drive, p_school, p_holidays, p_health, p_auto, p_cushion, p_monuments = 0.43, 0.10, 0.12, 0.15, 0.05, 0.10, 0.10, 0.05
             
             if is_cushion_full:
-                cushion = 0.0
-                pocket = leftover * 0.70  
-            else:
-                cushion = leftover * 0.20
-                pocket = leftover * 0.50
+                p_pocket += p_cushion
+                p_cushion = 0.0
+                
+            pocket = c7 * p_pocket
+            drive = c7 * p_drive
+            masya_school = c7 * p_school
+            cushion = c7 * p_cushion
+            holidays = c7 * p_holidays
+            health = c7 * p_health
+            auto = c7 * p_auto
+            monuments = c7 * p_monuments
+            
+            # ИНЖЕНЕРНЫЕ ЖЕСТКИЕ ОГРАНИЧИТЕЛИ (ЛИМИТЫ КОНВЕРТОВ)
+            if auto > 5000.0:
+                pocket += (auto - 5000.0)
+                auto = 5000.0
+                
+            if monuments > 2000.0:
+                pocket += (monuments - 2000.0)
+                monuments = 2000.0
 
-        # СКВОЗНОЙ НАЛОГ 3% НА ОДЕЖДУ (ТЕПЕРЬ ВСЕ ПЕРЕМЕННЫЕ ГАРАНТИРОВАННО ИНИЦИАЛИЗИРОВАНЫ)
+        # СКВОЗНОЙ НАЛОГ 3% НА ОДЕЖДУ (со всех конвертов, КРОМЕ Мася школа)
         clothes = (pocket * 0.03) + (drive * 0.03) + (holidays * 0.03) + (health * 0.03) + (auto * 0.03) + (cushion * 0.03) + (monuments * 0.03)
         pocket = pocket * 0.97
         drive = drive * 0.97
@@ -333,7 +343,7 @@ def process_cash(message):
         r_clothes = math.floor(clothes / 10) * 10
         r_cushion = math.floor(cushion / 10) * 10
         
-        # КАРМАН СЛУЖИТ БАЛАНСИРОМ КОПЕЕК ОКРУГЛЕНИЯ
+        # СВЕДЕНИЕ КОПЕЕК И ОСТАТКОВ ОКРУГЛЕНИЯ СТРОГО В КАРМАН (ЗАЩИТА ОТ ВЫЛЕТОВ)
         allocated_except_pocket = r_drive + r_holidays + r_health + r_auto + r_monuments + r_masya_school + r_clothes + r_cushion
         r_pocket = c7 - allocated_except_pocket
 
