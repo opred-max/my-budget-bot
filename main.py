@@ -248,7 +248,8 @@ def process_cash(message):
         
         if c7 <= 15000:
             mode_name = "🟥 Уровень 1: Выживание"
-            p_pocket, p_drive, p_school, p_holidays, p_health, p_auto, p_cushion, p_monuments = 0.46, 0.00, 0.10, 0.16, 0.12, 0.10, 0.06, 0.00
+            # Новая сбалансированная сетка (Подушка прикручена до 5%, Карман поднят до 55%)
+            p_pocket, p_drive, p_school, p_holidays, p_health, p_auto, p_cushion, p_monuments = 0.55, 0.00, 0.12, 0.12, 0.08, 0.08, 0.05, 0.00
             
             if is_cushion_full:
                 p_pocket += p_cushion
@@ -265,7 +266,8 @@ def process_cash(message):
 
         elif c7 <= 30000:
             mode_name = "🟧 Уровень 2: Стабилизация"
-            p_pocket, p_drive, p_school, p_cushion, p_holidays, p_health, p_auto, p_monuments = 0.35, 0.15, 0.12, 0.10, 0.12, 0.08, 0.08, 0.00
+            # Подушка выставлена на 10%, выровнены остальные конверты
+            p_pocket, p_drive, p_school, p_holidays, p_health, p_auto, p_cushion, p_monuments = 0.40, 0.15, 0.12, 0.15, 0.08, 0.12, 0.10, 0.00
             
             if is_cushion_full:
                 p_pocket += p_cushion
@@ -282,7 +284,8 @@ def process_cash(message):
 
         elif c7 <= 50000:
             mode_name = "🟨 Уровень 3: Развитие"
-            p_pocket, p_drive, p_school, p_cushion, p_holidays, p_health, p_auto, p_monuments = 0.42, 0.10, 0.15, 0.12, 0.08, 0.05, 0.06, 0.02
+            # Подушка выставлена на 15%, памятники выключены
+            p_pocket, p_drive, p_school, p_holidays, p_health, p_auto, p_cushion, p_monuments = 0.40, 0.15, 0.12, 0.15, 0.08, 0.12, 0.15, 0.00
             
             if is_cushion_full:
                 p_pocket += p_cushion
@@ -317,10 +320,17 @@ def process_cash(message):
             else:
                 cushion = calculated_cushion
 
-        clothes = (pocket * 0.15) + (masya_school * 0.15)
-        pocket = pocket * 0.85
-        masya_school = masya_school * 0.85
+        # СКВОЗНОЙ НАЛОГ 3% НА ОДЕЖДУ (со всех конвертов, КРОМЕ Мася школа)
+        clothes = (pocket * 0.03) + (drive * 0.03) + (holidays * 0.03) + (health * 0.03) + (auto * 0.03) + (cushion * 0.03) + (monuments * 0.03)
+        pocket = pocket * 0.97
+        drive = drive * 0.97
+        holidays = holidays * 0.97
+        health = health * 0.97
+        auto = auto * 0.97
+        cushion = cushion * 0.97
+        monuments = monuments * 0.97
 
+        # МАТЕМАТИЧЕСКОЕ ОКРУГЛЕНИЕ ДО КРУГЛЫХ 10 РУБЛЕЙ В МЕНЬШУЮ СТОРОНУ
         r_pocket = math.floor(pocket / 10) * 10
         r_drive = math.floor(drive / 10) * 10
         r_holidays = math.floor(holidays / 10) * 10
@@ -330,6 +340,7 @@ def process_cash(message):
         r_masya_school = math.floor(masya_school / 10) * 10
         r_clothes = math.floor(clothes / 10) * 10
         
+        # Сведение копеек и остатков баланса на Подушку (или на Карман, если подушка забита)
         allocated_except_cushion = r_pocket + r_drive + r_holidays + r_health + r_auto + r_monuments + r_masya_school + r_clothes
         if is_cushion_full:
             r_pocket += (c7 - allocated_except_cushion)
@@ -357,7 +368,8 @@ def process_cash(message):
         if r_cushion > 0: report += f"🏦 Конверт «Подушка»: **{r_cushion:,.0f} ₽**"
         
         markup = types.InlineKeyboardMarkup()
-        cb_data = f"sub_main_{income}_{r_pocket}_{r_drive}_{r_school}_{r_cushion}_{r_holidays}_{r_health}_{r_auto}_{r_monuments}_{r_clothes}"
+        # Исправлена опечатка: передаем r_masya_school вместо несуществующей r_school
+        cb_data = f"sub_main_{income}_{r_pocket}_{r_drive}_{r_masya_school}_{r_cushion}_{r_holidays}_{r_health}_{r_auto}_{r_monuments}_{r_clothes}"
         btn = types.InlineKeyboardButton("📝 Подтвердить и записать доход", callback_data=cb_data)
         markup.add(btn)
         
@@ -438,10 +450,15 @@ def process_side(message):
             holidays = e2 * p_holidays
             cushion = e2 * p_cushion
 
-        clothes = (pocket * 0.15) + (school * 0.15)
-        pocket = pocket * 0.85
-        school = school * 0.85
+        # СКВОЗНОЙ НАЛОГ НА ГАРДЕРОБ 3% (со всех, КРОМЕ Школы)
+        clothes = (pocket * 0.03) + (drive * 0.03) + (holidays * 0.03) + (cushion * 0.03) + (credit * 0.03)
+        pocket = pocket * 0.97
+        drive = drive * 0.97
+        holidays = holidays * 0.97
+        cushion = cushion * 0.97
+        credit = credit * 0.97
 
+        # ПРИМЕНЕНИЕ ОКРУГЛЕНИЯ ДО 10 РУБЛЕЙ
         r_pocket = math.floor(pocket / 10) * 10
         r_drive = math.floor(drive / 10) * 10
         r_school = math.floor(school / 10) * 10
@@ -466,7 +483,7 @@ def process_side(message):
 
         r_pocket += overflow_to_pocket
 
-        # Правило гарантированных 100 рублей в Масю школу (при наличии общего бюджета)
+        # Правило гарантированных 100 рублей в Масю школу
         if 0 < r_school < 100:
             needed_diff = 100.0 - r_school
             if r_pocket >= needed_diff:
@@ -476,7 +493,6 @@ def process_side(message):
                 r_pocket += r_school
                 r_school = 0.0
         elif r_school == 0.0 and e2 >= 300.0 and (level_name.startswith("🌱") or level_name.startswith("📈")):
-            # Если по сетке 0, но это мелкий чек, принудительно даем 100р из доли кармана
             if r_pocket >= 100.0:
                 r_pocket -= 100.0
                 r_school = 100.0
@@ -484,7 +500,6 @@ def process_side(message):
         if credit > 0:
             allocated_except_credit = r_pocket + r_drive + r_school + r_holidays + r_cushion + r_clothes
             r_credit = e2 - allocated_except_credit
-            # Фильтр <100 руб для досрочки кредита: убираем мелкий остаток в карман
             if 0 < r_credit < 100:
                 r_pocket += r_credit
                 r_credit = 0.0
@@ -517,8 +532,7 @@ def process_side(message):
         
         markup = types.InlineKeyboardMarkup()
         cb_data = f"sub_side_{e2}_{r_pocket}_{r_drive}_{r_school}_{r_cushion}_{r_holidays}_{r_credit}_{r_clothes}"
-        btn = types.InlineKeyboardButton("📝 Подтвердить и записать доход", callback_data=cb_data)
-        markup.add(btn)
+        markup.add(types.InlineKeyboardButton("📝 Подтвердить и записать доход", callback_data=cb_data))
         
         bot.send_message(message.chat.id, report, reply_markup=markup, parse_mode='Markdown')
         
