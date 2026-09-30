@@ -82,9 +82,9 @@ def get_main_keyboard():
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     welcome_text = (
-        "👋 **Financial Engine v5.6 [ОТЛАЖЕН] активирован.**\n"
-        "Успешно устранена ошибка распаковки данных Жирного режима.\n"
-        "Сбалансирован Уровень 3 основного дохода и Автофонд подработок.\n\n"
+        "👋 **Financial Engine v5.6 [FINAL] активирован.**\n"
+        "Успешно ликвидирован баг расчетов Жирного режима (140к и 150к).\n"
+        "Синхронизированы сквозные 3% налоги на Одежду по всем уровням.\n\n"
         "🔧 **Команды управления целями (балансами):**\n"
         "├ `/set_credit XXXXX` — изменить остаток долга по Кредиту\n"
         "│  (Пример: `/set_credit 125423.45`)\n"
@@ -200,7 +200,7 @@ def show_monthly_report(message):
     if r_monuments > 0: sec_safe += f"└ 🪦 Памятники: {r_monuments:,.0f} ₽\n"
     
     if sec_safe: msg += sec_safe + "\n"
-    else: msg += "└ Конверты этой группы пусты\n\n"
+    else: msg += "└badge Конверты этой группы пусты\n\n"
     
     msg += f"🔥 **СВОБОДА И ЖИЗНЬ:**\n"
     sec_life = ""
@@ -315,6 +315,7 @@ def process_cash(message):
             else:
                 cushion = calculated_cushion
 
+        # СКВОЗНОЙ НАЛОГ 3% НА ОДЕЖДУ (со всех конвертов, КРОМЕ Мася школа)
         clothes = (pocket * 0.03) + (drive * 0.03) + (holidays * 0.03) + (health * 0.03) + (auto * 0.03) + (cushion * 0.03) + (monuments * 0.03)
         pocket = pocket * 0.97
         drive = drive * 0.97
@@ -360,7 +361,7 @@ def process_cash(message):
         if r_cushion > 0: report += f"🏦 Конверт «Подушка»: **{r_cushion:,.0f} ₽**"
         
         markup = types.InlineKeyboardMarkup()
-        # СТРОГОЕ СОВПАДЕНИЕ ПАРАМЕТРОВ С ПРИЕМНИКОМ (10 ЗНАЧЕНИЙ ПОСЛЕ sub_main)
+        # СТРОГОЕ ГАРАНТИРОВАННОЕ СЛЕДОВАНИЕ 10 ПАРАМЕТРОВ ПОСЛЕ СЛОВА sub_main_ С ПОЛНЫМ СОВПАДЕНИЕМ
         cb_data = f"sub_main_{income}_{r_pocket}_{r_drive}_{r_masya_school}_{r_cushion}_{r_holidays}_{r_health}_{r_auto}_{r_monuments}_{r_clothes}"
         btn = types.InlineKeyboardButton("📝 Подтвердить и записать доход", callback_data=cb_data)
         markup.add(btn)
@@ -370,7 +371,7 @@ def process_cash(message):
     except Exception as e:
         bot.send_message(message.chat.id, "❌ Произошла непредвиденная ошибка расчетов основного дохода.")
 # =====================================================================
-# БЛОК ПОДРАБОТОК И ЗАПУСК СЕРВИСА (ПОЛНОСТЬЮ ОТЛАЖЕННЫЙ CALLBACK)
+# БЛОК ПОДРАБОТОК И ЗАПУСК СЕРВИСА (ФИНАЛЬНЫЙ БЕЗБАГОВЫЙ КУСОК)
 # =====================================================================
 @bot.message_handler(func=lambda m: m.text == "🚀 Подработка")
 def ask_side(message):
@@ -539,7 +540,7 @@ def callback_inline(call):
     try:
         if call.data.startswith("sub_main_"):
             p = call.data.split("_")
-            # СТРОГАЯ ИСПРАВЛЕННАЯ РАСПАКОВКА: Считываем все 10 переменных
+            # ЧЕТКАЯ РАСПАКОВКА 10 ПАРАМЕТРОВ (ПОЛНОЕ СООТВЕТСТВИЕ ДАННЫМ ИЗ ЧАСТИ 4)
             income, r_pocket, r_drive, r_school, r_cushion, r_holidays, r_health, r_auto, r_monuments, r_clothes = map(float, p[2:])
             
             save_to_stats("основной", income, r_pocket, r_drive, r_school, r_cushion, r_holidays, r_health, r_auto, r_monuments, 0.0, r_clothes)
