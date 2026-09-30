@@ -57,7 +57,7 @@ def save_to_stats(income_type, total, pocket, drive, school, cushion, holidays=0
     with open(STATS_FILE, "a", encoding="utf-8") as f:
         f.write(row)
 # =====================================================================
-# ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ И ИНТЕРФЕЙС БОТА (CODE: ERR_UI_KEYBOARD)
+# ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ И ИНТЕРФЕЙС БОТА
 # =====================================================================
 def validate_amount(text):
     try:
@@ -81,9 +81,9 @@ def get_main_keyboard():
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     welcome_text = (
-        "👋 **Financial Engine v5.7 [EMULATION_OK] активирован.**\n"
-        "Ликвидирован баг ERR_CASH_L4_OVERFLOW математическим балансиром.\n"
-        "Внедрена система инженерного кодирования ошибок.\n\n"
+        "👋 **Financial Engine v5.7 [PROD_READY] активирован.**\n"
+        "Успешно ликвидирован баг локальных областей Жирного режима.\n"
+        "Синхронизированы сквозные 3% налоги на Одежду по всем уровням.\n\n"
         "🔧 **Команды управления целями (балансами):**\n"
         "├ `/set_credit XXXXX` — изменить остаток долга по Кредиту\n"
         "│  (Пример: `/set_credit 125423.45`)\n"
@@ -94,7 +94,7 @@ def send_welcome(message):
     bot.send_message(message.chat.id, welcome_text, reply_markup=get_main_keyboard(), parse_mode='Markdown')
 
 # =====================================================================
-# КОМАНДЫ РУЧНОГО ИЗМЕНЕНИЯ БАЛАНСОВ (CODE: ERR_CMD_BALANCES)
+# КОМАНДЫ РУЧНОГО ИЗМЕНЕНИЯ БАЛАНСОВ
 # =====================================================================
 @bot.message_handler(commands=['set_credit'])
 def set_credit_balance(message):
@@ -108,8 +108,8 @@ def set_credit_balance(message):
         b["credit"] = val
         save_balances(b["credit"], b["cushion_accumulated"])
         bot.reply_to(message, f"✅ Остаток долга по Кредиту изменен на: **{val:,.2f} ₽**", parse_mode='Markdown')
-    except Exception as e:
-        bot.reply_to(message, f"❌ **Ошибка ручной корректировки!** (Code: `ERR_CMD_CREDIT_PARSE`)\nФормат: `/set_credit 125423.45`", parse_mode='Markdown')
+    except:
+        bot.reply_to(message, "❌ **Ошибка ручной корректировки!** (Code: `ERR_CMD_CREDIT_PARSE`)\nФормат: `/set_credit 125423.45`", parse_mode='Markdown')
 
 @bot.message_handler(commands=['set_cushion'])
 def set_cushion_balance(message):
@@ -123,10 +123,10 @@ def set_cushion_balance(message):
         b["cushion_accumulated"] = val
         save_balances(b["credit"], b["cushion_accumulated"])
         bot.reply_to(message, f"✅ Баланс Подушки безопасности изменен на: **{val:,.2f} ₽**", parse_mode='Markdown')
-    except Exception as e:
-        bot.reply_to(message, f"❌ **Ошибка ручной корректировки!** (Code: `ERR_CMD_CUSHION_PARSE`)\nФормат: `/set_cushion 15000`", parse_mode='Markdown')
+    except:
+        bot.reply_to(message, "❌ **Ошибка ручной корректировки!** (Code: `ERR_CMD_CUSHION_PARSE`)\nФормат: `/set_cushion 15000`", parse_mode='Markdown')
 # =====================================================================
-# НАГЛЯДНЫЙ ДВУХМЕСЯЧНЫЙ ЕЖЕМЕСЯЧНЫЙ ОТЧЕТ (CODE: ERR_REPORT_CORE)
+# НАГЛЯДНЫЙ ДВУХМЕСЯЧНЫЙ ЕЖЕМЕСЯЧНЫЙ ОТЧЕТ
 # =====================================================================
 @bot.message_handler(func=lambda m: m.text == "⚙️ Мои Балансы и Цели")
 def show_balances_screen(message):
@@ -134,7 +134,7 @@ def show_balances_screen(message):
     msg = (
         f"⚙️ **ТЕКУЩЕЕ СОСТОЯНИЕ ЦЕЛЕЙ:**\n\n"
         f"📉 Остаток по Кредиту: **{b['credit']:,.2f} ₽**\n"
-        f"🏦 Накоплено in Подушку: **{b['cushion_accumulated']:,.2f} ₽** / 100,000 ₽\n"
+        f"🏦 Накоплено в Подушку: **{b['cushion_accumulated']:,.2f} ₽** / 100,000 ₽\n"
     )
     bot.send_message(message.chat.id, msg, parse_mode='Markdown')
 
@@ -214,7 +214,7 @@ def show_monthly_report(message):
     msg += (
         f"═══════════════════════════\n"
         f"📅 **ДЛЯ СРАВНЕНИЯ:**\n"
-        f"└ ⏪ Заработано in `{prev_month}`: **{total_prev:,.2f} ₽**"
+        f"└ ⏪ Заработано в `{prev_month}`: **{total_prev:,.2f} ₽**"
     )
     
     bot.send_message(message.chat.id, msg, parse_mode='Markdown')
@@ -240,6 +240,7 @@ def process_cash(message):
         wife_cash = income * 0.60
         c7 = income * 0.40
         
+        # ЖЕСТКАЯ ДЕКЛАРАЦИЯ ПЕРЕМЕННЫХ НА СТАРТЕ ДЛЯ ЗАЩИТЫ ОТ UNBOUNDLOCALERROR
         pocket, drive, holidays, health, auto, cushion, monuments, masya_school = [0.0]*8
         mode_name = ""
         
@@ -303,14 +304,12 @@ def process_cash(message):
             
             leftover = c7 - 14750.0
             
-            # РЕШЕНИЕ БАГА ERR_CASH_L4_OVERFLOW:
-            # Все конверты, кроме кармана, жестко рассчитываются из долей остатка
             masya_school = leftover * 0.20
             drive = leftover * 0.10
             
             if is_cushion_full:
                 cushion = 0.0
-                pocket = leftover * 0.70  # 50% базы + 20% перелитой подушки
+                pocket = leftover * 0.70  
             else:
                 cushion = leftover * 0.20
                 pocket = leftover * 0.50
@@ -334,7 +333,7 @@ def process_cash(message):
         r_clothes = math.floor(clothes / 10) * 10
         r_cushion = math.floor(cushion / 10) * 10
         
-        # БАЛАНСИР ПЕРЕНЕСЕН В КАРМАН: Копейки округления уходят в Карман. Общая сумма никогда не превысит лимит.
+        # БАЛАНСИР ПЕРЕНЕСЕН В КАРМАН: Сглаживает копейки, защищая от переполнения
         allocated_except_pocket = r_drive + r_holidays + r_health + r_auto + r_monuments + r_masya_school + r_clothes + r_cushion
         r_pocket = c7 - allocated_except_pocket
 
@@ -367,7 +366,7 @@ def process_cash(message):
     except Exception as e:
         bot.send_message(message.chat.id, "❌ Произошла непредвиденная ошибка расчетов основного дохода.\n(Code: `ERR_CASH_CALC`)")
 # =====================================================================
-# БЛОК ПОДРАБОТОК И ЗАПУСК СЕРВИСА (CODE: ERR_SIDE_ENGINE)
+# БЛОК ПОДРАБОТОК И ЗАПУСК СЕРВИСА (ФИНАЛЬНЫЙ СТАБИЛЬНЫЙ КУСОК)
 # =====================================================================
 @bot.message_handler(func=lambda m: m.text == "🚀 Подработка")
 def ask_side(message):
