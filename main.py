@@ -378,7 +378,6 @@ def process_side(message):
             if is_cushion_full: p_pocket += p_cushion; p_cushion = 0.0
             pocket, drive, credit, school, holidays, cushion, auto = e2*p_pocket, e2*p_drive, e2*p_credit, e2*p_school, e2*p_holidays, e2*p_cushion, e2*p_auto
 
-        # СКВОЗНОЙ НАЛОГ 4% НА ПОДРАБОТКАХ (со всех, КРОМЕ Школы)
         clothes = (pocket * 0.04) + (drive * 0.04) + (holidays * 0.04) + (cushion * 0.04) + (credit * 0.04) + (auto * 0.04)
         pocket, drive, holidays, cushion, credit, auto = pocket * 0.96, drive * 0.96, holidays * 0.96, cushion * 0.96, credit * 0.96, auto * 0.96
 
@@ -491,3 +490,66 @@ def calculate_side_distribution(e2, is_credit_done, is_cushion_full):
         if 0 < r_cushion < 100: r_pocket += r_cushion; r_cushion = 0.0
 
     return r_pocket, r_drive, r_school, r_cushion, r_holidays, r_credit, r_clothes, r_auto
+# =====================================================================
+# ОБРАБОТЧИК CALLBACK И СЕТЕВОЙ ЗАПУСК ДВИЖКА (ФИНАЛЬНЫЙ БЛОК)
+# =====================================================================
+@bot.callback_query_handler(func=lambda call: True)
+def callback_inline(call):
+    try:
+        # ОБРАБОТКА СЖАТОГО ПАКЕТА ОСНОВНОГО ДОХОДА
+        if call.data.startswith("sm_"):
+            # ИСПРАВЛЕН КРАШ: Берем второй элемент списка после разделения строки [1]
+            income = float(call.data.split("_")[1])
+            b = load_balances()
+            is_cushion_full = b["cushion_accumulated"] >= 100000.0
+            
+            # Динамический пересчет в момент клика по сохраненной формуле [1]
+            _, r_pocket, r_drive, r_school, r_cushion, r_holidays, r_health, r_auto, r_monuments, r_clothes = calculate_cash_distribution(income, is_cushion_full)
+            
+            save_to_stats("основной", income, r_pocket, r_drive, r_school, r_cushion, r_holidays, r_health, r_auto, r_monuments, 0.0, r_clothes)
+            
+            b["cushion_accumulated"] += r_cushion
+            save_balances(b["credit"], b["cushion_accumulated"])
+            
+            bot.answer_callback_query(call.id, "Доход успешно зафиксирован!")
+            bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, 
+                                  text=call.message.text + "\n\n✅ **ДОХОД ПОДТВЕРЖДЕН И ЗАПИСАН В СВОДКУ**", parse_mode='Markdown')
+
+        # ОБРАБОТКА СЖАТОГО ПАКЕТА ПОДРАБОТОК
+        elif call.data.startswith("ss_"):
+            # ИСПРАВЛЕН КРАШ: Берем второй элемент списка после разделения строки [1]
+            e2 = float(call.data.split("_")[1])
+            b = load_balances()
+            is_credit_done = b["credit"] <= 0.0
+            is_cushion_full = b["cushion_accumulated"] >= 100000.0
+            
+            # Динамический пересчет подработок в момент клика [1]
+            r_pocket, r_drive, r_school, r_cushion, r_holidays, r_credit, r_clothes, r_auto = calculate_side_distribution(e2, is_credit_done, is_cushion_full)
+            
+            save_to_stats("подработка", e2, r_pocket, r_drive, r_school, r_cushion, r_holidays, 0, r_auto, 0, r_credit, r_clothes)
+            
+            b["credit"] = max(0.0, b["credit"] - r_credit)
+            b["cushion_accumulated"] += r_cushion
+            save_balances(b["credit"], b["cushion_accumulated"])
+            
+            bot.answer_callback_query(call.id, "Запись обновлена!")
+            bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, 
+                                  text=call.message.text + "\n\n✅ **ДОХОД ПОДТВЕРЖДЕН И ЗАПИСАН В СВОДКУ**", parse_mode='Markdown')
+    except Exception as e:
+        bot.answer_callback_query(call.id, "❌ Ошибка подтверждения (Code: `ERR_CB_FALLBACK`)")
+
+# =====================================================================
+# МАСКИРОВКА ПОД ВЕБ-СЕРВИС ДЛЯ RENDER
+# =====================================================================
+app = Flask('')
+
+@app.route('/')
+def home():
+    return "Финансовый движок полностью готов и активен!"
+
+def run_flask():
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
+
+if __name__ == '__main__':
+    threading.Thread(target=run_flask).start()
+    bot.infinity_polling()
