@@ -15,7 +15,6 @@ bot = telebot.TeleBot(TOKEN)
 STATS_FILE = "monthly_stats.txt"
 BALANCES_FILE = "balances.txt"
 
-# Календарь плановых расходов по месяцам
 HOLIDAYS_CALENDAR = {
     1: 7000, 2: 0, 3: 12000, 4: 5000, 5: 2000, 6: 0,
     7: 1000, 8: 23000, 9: 3000, 10: 8000, 11: 0, 12: 10000
@@ -58,7 +57,7 @@ def save_to_stats(income_type, total, pocket, drive, school, cushion, holidays=0
     with open(STATS_FILE, "a", encoding="utf-8") as f:
         f.write(row)
 # =====================================================================
-# ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ И ИНТЕРФЕЙС БОТА
+# ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ И ИНТЕРФЕЙС БОТА (CODE: ERR_UI_KEYBOARD)
 # =====================================================================
 def validate_amount(text):
     try:
@@ -82,9 +81,9 @@ def get_main_keyboard():
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     welcome_text = (
-        "👋 **Financial Engine v5.6 [FINAL] активирован.**\n"
-        "Успешно ликвидирован баг расчетов Жирного режима (140к и 150к).\n"
-        "Синхронизированы сквозные 3% налоги на Одежду по всем уровням.\n\n"
+        "👋 **Financial Engine v5.7 [EMULATION_OK] активирован.**\n"
+        "Ликвидирован баг ERR_CASH_L4_OVERFLOW математическим балансиром.\n"
+        "Внедрена система инженерного кодирования ошибок.\n\n"
         "🔧 **Команды управления целями (балансами):**\n"
         "├ `/set_credit XXXXX` — изменить остаток долга по Кредиту\n"
         "│  (Пример: `/set_credit 125423.45`)\n"
@@ -95,7 +94,7 @@ def send_welcome(message):
     bot.send_message(message.chat.id, welcome_text, reply_markup=get_main_keyboard(), parse_mode='Markdown')
 
 # =====================================================================
-# КОМАНДЫ РУЧНОГО ИЗМЕНЕНИЯ БАЛАНСОВ
+# КОМАНДЫ РУЧНОГО ИЗМЕНЕНИЯ БАЛАНСОВ (CODE: ERR_CMD_BALANCES)
 # =====================================================================
 @bot.message_handler(commands=['set_credit'])
 def set_credit_balance(message):
@@ -109,8 +108,8 @@ def set_credit_balance(message):
         b["credit"] = val
         save_balances(b["credit"], b["cushion_accumulated"])
         bot.reply_to(message, f"✅ Остаток долга по Кредиту изменен на: **{val:,.2f} ₽**", parse_mode='Markdown')
-    except:
-        bot.reply_to(message, "❌ **Ошибка!** Формат: `/set_credit 125423.45`", parse_mode='Markdown')
+    except Exception as e:
+        bot.reply_to(message, f"❌ **Ошибка ручной корректировки!** (Code: `ERR_CMD_CREDIT_PARSE`)\nФормат: `/set_credit 125423.45`", parse_mode='Markdown')
 
 @bot.message_handler(commands=['set_cushion'])
 def set_cushion_balance(message):
@@ -124,10 +123,10 @@ def set_cushion_balance(message):
         b["cushion_accumulated"] = val
         save_balances(b["credit"], b["cushion_accumulated"])
         bot.reply_to(message, f"✅ Баланс Подушки безопасности изменен на: **{val:,.2f} ₽**", parse_mode='Markdown')
-    except:
-        bot.reply_to(message, "❌ **Ошибка!** Формат: `/set_cushion 15000`", parse_mode='Markdown')
+    except Exception as e:
+        bot.reply_to(message, f"❌ **Ошибка ручной корректировки!** (Code: `ERR_CMD_CUSHION_PARSE`)\nФормат: `/set_cushion 15000`", parse_mode='Markdown')
 # =====================================================================
-# НАГЛЯДНЫЙ ДВУХМЕСЯЧНЫЙ ЕЖЕМЕСЯЧНЫЙ ОТЧЕТ
+# НАГЛЯДНЫЙ ДВУХМЕСЯЧНЫЙ ЕЖЕМЕСЯЧНЫЙ ОТЧЕТ (CODE: ERR_REPORT_CORE)
 # =====================================================================
 @bot.message_handler(func=lambda m: m.text == "⚙️ Мои Балансы и Цели")
 def show_balances_screen(message):
@@ -135,7 +134,7 @@ def show_balances_screen(message):
     msg = (
         f"⚙️ **ТЕКУЩЕЕ СОСТОЯНИЕ ЦЕЛЕЙ:**\n\n"
         f"📉 Остаток по Кредиту: **{b['credit']:,.2f} ₽**\n"
-        f"🏦 Накоплено в Подушку: **{b['cushion_accumulated']:,.2f} ₽** / 100,000 ₽\n"
+        f"🏦 Накоплено in Подушку: **{b['cushion_accumulated']:,.2f} ₽** / 100,000 ₽\n"
     )
     bot.send_message(message.chat.id, msg, parse_mode='Markdown')
 
@@ -200,7 +199,7 @@ def show_monthly_report(message):
     if r_monuments > 0: sec_safe += f"└ 🪦 Памятники: {r_monuments:,.0f} ₽\n"
     
     if sec_safe: msg += sec_safe + "\n"
-    else: msg += "└badge Конверты этой группы пусты\n\n"
+    else: msg += "└ Конверты этой группы пусты\n\n"
     
     msg += f"🔥 **СВОБОДА И ЖИЗНЬ:**\n"
     sec_life = ""
@@ -215,7 +214,7 @@ def show_monthly_report(message):
     msg += (
         f"═══════════════════════════\n"
         f"📅 **ДЛЯ СРАВНЕНИЯ:**\n"
-        f"└ ⏪ Заработано в `{prev_month}`: **{total_prev:,.2f} ₽**"
+        f"└ ⏪ Заработано in `{prev_month}`: **{total_prev:,.2f} ₽**"
     )
     
     bot.send_message(message.chat.id, msg, parse_mode='Markdown')
@@ -304,16 +303,17 @@ def process_cash(message):
             
             leftover = c7 - 14750.0
             
-            pocket = leftover * 0.50
+            # РЕШЕНИЕ БАГА ERR_CASH_L4_OVERFLOW:
+            # Все конверты, кроме кармана, жестко рассчитываются из долей остатка
             masya_school = leftover * 0.20
             drive = leftover * 0.10
             
-            calculated_cushion = leftover * 0.20
             if is_cushion_full:
-                pocket += calculated_cushion
                 cushion = 0.0
+                pocket = leftover * 0.70  # 50% базы + 20% перелитой подушки
             else:
-                cushion = calculated_cushion
+                cushion = leftover * 0.20
+                pocket = leftover * 0.50
 
         # СКВОЗНОЙ НАЛОГ 3% НА ОДЕЖДУ (со всех конвертов, КРОМЕ Мася школа)
         clothes = (pocket * 0.03) + (drive * 0.03) + (holidays * 0.03) + (health * 0.03) + (auto * 0.03) + (cushion * 0.03) + (monuments * 0.03)
@@ -325,7 +325,6 @@ def process_cash(message):
         cushion = cushion * 0.97
         monuments = monuments * 0.97
 
-        r_pocket = math.floor(pocket / 10) * 10
         r_drive = math.floor(drive / 10) * 10
         r_holidays = math.floor(holidays / 10) * 10
         r_health = math.floor(health / 10) * 10
@@ -333,13 +332,11 @@ def process_cash(message):
         r_monuments = math.floor(monuments / 10) * 10
         r_masya_school = math.floor(masya_school / 10) * 10
         r_clothes = math.floor(clothes / 10) * 10
+        r_cushion = math.floor(cushion / 10) * 10
         
-        allocated_except_cushion = r_pocket + r_drive + r_holidays + r_health + r_auto + r_monuments + r_masya_school + r_clothes
-        if is_cushion_full:
-            r_pocket += (c7 - allocated_except_cushion)
-            r_cushion = 0.0
-        else:
-            r_cushion = c7 - allocated_except_cushion
+        # БАЛАНСИР ПЕРЕНЕСЕН В КАРМАН: Копейки округления уходят в Карман. Общая сумма никогда не превысит лимит.
+        allocated_except_pocket = r_drive + r_holidays + r_health + r_auto + r_monuments + r_masya_school + r_clothes + r_cushion
+        r_pocket = c7 - allocated_except_pocket
 
         report = (
             f"📊 **РАСЧЕТ ОСНОВНОГО ДОХОДА ({income:,.0f} ₽)**\n"
@@ -361,7 +358,6 @@ def process_cash(message):
         if r_cushion > 0: report += f"🏦 Конверт «Подушка»: **{r_cushion:,.0f} ₽**"
         
         markup = types.InlineKeyboardMarkup()
-        # СТРОГОЕ ГАРАНТИРОВАННОЕ СЛЕДОВАНИЕ 10 ПАРАМЕТРОВ ПОСЛЕ СЛОВА sub_main_ С ПОЛНЫМ СОВПАДЕНИЕМ
         cb_data = f"sub_main_{income}_{r_pocket}_{r_drive}_{r_masya_school}_{r_cushion}_{r_holidays}_{r_health}_{r_auto}_{r_monuments}_{r_clothes}"
         btn = types.InlineKeyboardButton("📝 Подтвердить и записать доход", callback_data=cb_data)
         markup.add(btn)
@@ -369,9 +365,9 @@ def process_cash(message):
         bot.send_message(message.chat.id, report, reply_markup=markup, parse_mode='Markdown')
             
     except Exception as e:
-        bot.send_message(message.chat.id, "❌ Произошла непредвиденная ошибка расчетов основного дохода.")
+        bot.send_message(message.chat.id, "❌ Произошла непредвиденная ошибка расчетов основного дохода.\n(Code: `ERR_CASH_CALC`)")
 # =====================================================================
-# БЛОК ПОДРАБОТОК И ЗАПУСК СЕРВИСА (ФИНАЛЬНЫЙ БЕЗБАГОВЫЙ КУСОК)
+# БЛОК ПОДРАБОТОК И ЗАПУСК СЕРВИСА (CODE: ERR_SIDE_ENGINE)
 # =====================================================================
 @bot.message_handler(func=lambda m: m.text == "🚀 Подработка")
 def ask_side(message):
@@ -533,14 +529,13 @@ def process_side(message):
         bot.send_message(message.chat.id, report, reply_markup=markup, parse_mode='Markdown')
         
     except Exception as e:
-        bot.send_message(message.chat.id, "❌ Произошла ошибка обработки подработки.")
+        bot.send_message(message.chat.id, "❌ Произошла ошибка обработки подработки.\n(Code: `ERR_SIDE_CALC`)")
 
 @bot.callback_query_handler(func=lambda call: True)
 def callback_inline(call):
     try:
         if call.data.startswith("sub_main_"):
             p = call.data.split("_")
-            # ЧЕТКАЯ РАСПАКОВКА 10 ПАРАМЕТРОВ (ПОЛНОЕ СООТВЕТСТВИЕ ДАННЫМ ИЗ ЧАСТИ 4)
             income, r_pocket, r_drive, r_school, r_cushion, r_holidays, r_health, r_auto, r_monuments, r_clothes = map(float, p[2:])
             
             save_to_stats("основной", income, r_pocket, r_drive, r_school, r_cushion, r_holidays, r_health, r_auto, r_monuments, 0.0, r_clothes)
@@ -568,7 +563,7 @@ def callback_inline(call):
             bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, 
                                   text=call.message.text + "\n\n✅ **ДОХОД ПОДТВЕРЖДЕН И ЗАПИСАН В СВОДКУ**", parse_mode='Markdown')
     except Exception as e:
-        bot.answer_callback_query(call.id, "❌ Ошибка подтверждения")
+        bot.answer_callback_query(call.id, "❌ Ошибка подтверждения (Code: `ERR_CB_FALLBACK`)")
 
 # =====================================================================
 # МАСКИРОВКА ПОД ВЕБ-СЕРВИС ДЛЯ RENDER
