@@ -34,8 +34,8 @@ def load_balances():
             if len(data) < 2:
                 return default_balances
             return {
-                "credit": max(0.0, float(data[0])),
-                "cushion_accumulated": max(0.0, float(data[1]))
+                "credit": max(0.0, float(data)),
+                "cushion_accumulated": max(0.0, float(data))
             }
     except:
         return default_balances
@@ -57,7 +57,7 @@ def save_to_stats(income_type, total, pocket, drive, school, cushion, holidays=0
     with open(STATS_FILE, "a", encoding="utf-8") as f:
         f.write(row)
 # =====================================================================
-# ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ И ИНТЕРФЕЙС БОТА (ВЕРСИЯ С МИНИ-CALLBACK)
+# ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ И ИНТЕРФЕЙС БОТА
 # =====================================================================
 def validate_amount(text):
     try:
@@ -81,10 +81,10 @@ def get_main_keyboard():
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     welcome_text = (
-        "👋 **Financial Engine v5.8 [LIGHT_CALLBACK] активирован.**\n"
-        "Размер инлайн-строки сжат до 16 символов — обход лимита 64 байта Telegram!\n"
-        "Сверхдоходы (140к+) теперь работают абсолютно стабильно.\n\n"
-        "🔧 **Команды управления целями (балансами):**\n"
+        "👋 **Financial Engine v5.9 [TAX_4_PERCENT] активирован.**\n"
+        "Налог на Одежду повышен до 4%. Устранены расхождения Кармана и Драйва.\n"
+        "Внедрены лимиты: Праздники (5.5к), Авто (5к), Памятники (2к везде).\n\n"
+        "🔧 **Команны управления целями (балансами):**\n"
         "├ `/set_credit XXXXX` — изменить остаток долга по Кредиту\n"
         "│  (Пример: `/set_credit 125423.45`)\n"
         "└ `/set_cushion XXXXX` — изменить баланс Подушки безопасности\n"
@@ -227,7 +227,7 @@ def ask_cash(message):
     msg = bot.send_message(message.chat.id, "💵 Отлично! Введите общую сумму наличных от продаж:")
     bot.register_next_step_handler(msg, process_cash)
 def calculate_cash_distribution(income, is_cushion_full):
-    """Вспомогательная функция для расчета основного дохода (переиспользуется в шаге ввода и в callback)"""
+    """Функция расчета основного дохода с налогом 4% и жесткими лимитами"""
     c7 = income * 0.40
     pocket, drive, holidays, health, auto, cushion, monuments, masya_school = [0.0]*8
     
@@ -237,14 +237,7 @@ def calculate_cash_distribution(income, is_cushion_full):
         if is_cushion_full:
             p_pocket += p_cushion
             p_cushion = 0.0
-        pocket = c7 * p_pocket
-        drive = c7 * p_drive
-        masya_school = c7 * p_school
-        holidays = c7 * p_holidays
-        health = c7 * p_health
-        auto = c7 * p_auto
-        cushion = c7 * p_cushion
-        monuments = c7 * p_monuments
+        pocket, drive, masya_school, holidays, health, auto, cushion, monuments = c7*p_pocket, c7*p_drive, c7*p_school, c7*p_holidays, c7*p_health, c7*p_auto, c7*p_cushion, c7*p_monuments
 
     elif income <= 75000:
         mode_name = "🟧 Уровень 2: Стабилизация (от 37.5к до 75к)"
@@ -252,14 +245,7 @@ def calculate_cash_distribution(income, is_cushion_full):
         if is_cushion_full:
             p_pocket += p_cushion
             p_cushion = 0.0
-        pocket = c7 * p_pocket
-        drive = c7 * p_drive
-        masya_school = c7 * p_school
-        cushion = c7 * p_cushion
-        holidays = c7 * p_holidays
-        health = c7 * p_health
-        auto = c7 * p_auto
-        monuments = c7 * p_monuments
+        pocket, drive, masya_school, cushion, holidays, health, auto, monuments = c7*p_pocket, c7*p_drive, c7*p_school, c7*p_cushion, c7*p_holidays, c7*p_health, c7*p_auto, c7*p_monuments
 
     elif income <= 125000:
         mode_name = "🟨 Уровень 3: Развитие (от 75к до 125к)"
@@ -267,30 +253,23 @@ def calculate_cash_distribution(income, is_cushion_full):
         if is_cushion_full:
             p_pocket += p_cushion
             p_cushion = 0.0
-        pocket = c7 * p_pocket
-        drive = c7 * p_drive
-        masya_school = c7 * p_school
-        cushion = c7 * p_cushion
-        holidays = c7 * p_holidays
-        health = c7 * p_health
-        auto = c7 * p_auto
-        monuments = c7 * p_monuments
+        pocket, drive, masya_school, cushion, holidays, health, auto, monuments = c7*p_pocket, c7*p_drive, c7*p_school, c7*p_cushion, c7*p_holidays, c7*p_health, c7*p_auto, c7*p_monuments
+        
+        if monuments > 2000.0:
+            pocket += (monuments - 2000.0)
+            monuments = 2000.0
 
     else:
         mode_name = "♾ Уровень 4: Жирный режим (выше 125к)"
-        p_pocket, p_drive, p_school, p_holidays, p_health, p_auto, p_cushion, p_monuments = 0.43, 0.10, 0.12, 0.15, 0.05, 0.10, 0.10, 0.05
+        p_pocket, p_drive, p_school, p_holidays, p_health, p_auto, p_cushion, p_monuments = 0.38, 0.15, 0.12, 0.10, 0.05, 0.10, 0.10, 0.05
         if is_cushion_full:
             p_pocket += p_cushion
             p_cushion = 0.0
-        pocket = c7 * p_pocket
-        drive = c7 * p_drive
-        masya_school = c7 * p_school
-        cushion = c7 * p_cushion
-        holidays = c7 * p_holidays
-        health = c7 * p_health
-        auto = c7 * p_auto
-        monuments = c7 * p_monuments
+        pocket, drive, masya_school, cushion, holidays, health, auto, monuments = c7*p_pocket, c7*p_drive, c7*p_school, c7*p_cushion, c7*p_holidays, c7*p_health, c7*p_auto, c7*p_monuments
         
+        if holidays > 5500.0:
+            pocket += (holidays - 5500.0)
+            holidays = 5500.0
         if auto > 5000.0:
             pocket += (auto - 5000.0)
             auto = 5000.0
@@ -298,14 +277,9 @@ def calculate_cash_distribution(income, is_cushion_full):
             pocket += (monuments - 2000.0)
             monuments = 2000.0
 
-    clothes = (pocket * 0.03) + (drive * 0.03) + (holidays * 0.03) + (health * 0.03) + (auto * 0.03) + (cushion * 0.03) + (monuments * 0.03)
-    pocket = pocket * 0.97
-    drive = drive * 0.97
-    holidays = holidays * 0.97
-    health = health * 0.97
-    auto = auto * 0.97
-    cushion = cushion * 0.97
-    monuments = monuments * 0.97
+    # ПОВЫШЕННЫЙ СКВОЗНОЙ НАЛОГ 4% (со всех, КРОМЕ Мася школа)
+    clothes = (pocket * 0.04) + (drive * 0.04) + (holidays * 0.04) + (health * 0.04) + (auto * 0.04) + (cushion * 0.04) + (monuments * 0.04)
+    pocket, drive, holidays, health, auto, cushion, monuments = pocket*0.96, drive*0.96, holidays*0.96, health*0.96, auto*0.96, cushion*0.96, monuments*0.96
 
     r_drive = math.floor(drive / 10) * 10
     r_holidays = math.floor(holidays / 10) * 10
@@ -325,14 +299,13 @@ def process_cash(message):
     try:
         income = validate_amount(message.text)
         if income is None:
-            msg = bot.send_message(message.chat.id, "❌ **Ошибка ввода!** Введите корректное положительное число (например, 45000):")
+            msg = bot.send_message(message.chat.id, "❌ **Ошибка ввода!** Введите корректное положительное число:")
             bot.register_next_step_handler(msg, process_cash)
             return
 
         b = load_balances()
         is_cushion_full = b["cushion_accumulated"] >= 100000.0
-        wife_cash = income * 0.60
-        c7 = income * 0.40
+        wife_cash, c7 = income * 0.60, income * 0.40
         
         mode_name, r_pocket, r_drive, r_masya_school, r_cushion, r_holidays, r_health, r_auto, r_monuments, r_clothes = calculate_cash_distribution(income, is_cushion_full)
 
@@ -344,7 +317,6 @@ def process_cash(message):
             f"└ 🧔 Твоя чистая доля (40%): **{c7:,.0f} ₽**\n\n"
             f"🗂 **Распределение по конвертам:**\n"
         )
-        
         if r_pocket > 0: report += f"🛍 Конверт «Карман»: **{r_pocket:,.0f} ₽**\n"
         if r_drive > 0: report += f"🏎 Конверт «Драйв»: **{r_drive:,.0f} ₽**\n"
         if r_clothes > 0: report += f"👔 Конверт «Гардероб» (Шмотки): **{r_clothes:,.0f} ₽**\n"
@@ -356,11 +328,9 @@ def process_cash(message):
         if r_cushion > 0: report += f"🏦 Конверт «Подушка»: **{r_cushion:,.0f} ₽**"
         
         markup = types.InlineKeyboardMarkup()
-        # СУПЕР-СЖАТАЯ СТРОКА: Только префикс и сумма (Защита 64 байт Telegram API)
         cb_data = f"sm_{income}"
         btn = types.InlineKeyboardButton("📝 Подтвердить и записать доход", callback_data=cb_data)
         markup.add(btn)
-        
         bot.send_message(message.chat.id, report, reply_markup=markup, parse_mode='Markdown')
             
     except Exception as e:
@@ -408,8 +378,9 @@ def process_side(message):
             if is_cushion_full: p_pocket += p_cushion; p_cushion = 0.0
             pocket, drive, credit, school, holidays, cushion, auto = e2*p_pocket, e2*p_drive, e2*p_credit, e2*p_school, e2*p_holidays, e2*p_cushion, e2*p_auto
 
-        clothes = (pocket * 0.03) + (drive * 0.03) + (holidays * 0.03) + (cushion * 0.03) + (credit * 0.03) + (auto * 0.03)
-        pocket, drive, holidays, cushion, credit, auto = pocket * 0.97, drive * 0.97, holidays * 0.97, cushion * 0.97, credit * 0.97, auto * 0.97
+        # СКВОЗНОЙ НАЛОГ 4% НА ПОДРАБОТКАХ (со всех, КРОМЕ Школы)
+        clothes = (pocket * 0.04) + (drive * 0.04) + (holidays * 0.04) + (cushion * 0.04) + (credit * 0.04) + (auto * 0.04)
+        pocket, drive, holidays, cushion, credit, auto = pocket * 0.96, drive * 0.96, holidays * 0.96, cushion * 0.96, credit * 0.96, auto * 0.96
 
         r_pocket = math.floor(pocket / 10) * 10
         r_drive = math.floor(drive / 10) * 10
@@ -468,7 +439,7 @@ def process_side(message):
     except Exception as e:
         bot.send_message(message.chat.id, "❌ Произошла ошибка обработки подработки.\n(Code: `ERR_SIDE_CALC`)")
 def calculate_side_distribution(e2, is_credit_done, is_cushion_full):
-    """Вспомогательная функция для динамического пересчета подработок в момент клика"""
+    """Вспомогательная функция для динамического пересчета подработок в момент клика с налогом 4%"""
     pocket, drive, credit, school, holidays, cushion, auto = [0.0] * 7
     if e2 > 15000:
         pocket = 6000.0
@@ -489,8 +460,8 @@ def calculate_side_distribution(e2, is_credit_done, is_cushion_full):
         if is_cushion_full: p_pocket += p_cushion; p_cushion = 0.0
         pocket, drive, credit, school, holidays, cushion, auto = e2*p_pocket, e2*p_drive, e2*p_credit, e2*p_school, e2*p_holidays, e2*p_cushion, e2*p_auto
 
-    clothes = (pocket * 0.03) + (drive * 0.03) + (holidays * 0.03) + (cushion * 0.03) + (credit * 0.03) + (auto * 0.03)
-    pocket, drive, holidays, cushion, credit, auto = pocket*0.97, drive*0.97, holidays*0.97, cushion*0.97, credit*0.97, auto*0.97
+    clothes = (pocket * 0.04) + (drive * 0.04) + (holidays * 0.04) + (cushion * 0.04) + (credit * 0.04) + (auto * 0.04)
+    pocket, drive, holidays, cushion, credit, auto = pocket*0.96, drive*0.96, holidays*0.96, cushion*0.96, credit*0.96, auto*0.96
     r_pocket, r_drive, r_school, r_holidays, r_clothes, r_cushion, r_auto = math.floor(pocket/10)*10, math.floor(drive/10)*10, math.floor(school/10)*10, math.floor(holidays/10)*10, math.floor(clothes/10)*10, math.floor(cushion/10)*10, math.floor(auto/10)*10
 
     overflow_to_pocket = 0.0
@@ -520,64 +491,3 @@ def calculate_side_distribution(e2, is_credit_done, is_cushion_full):
         if 0 < r_cushion < 100: r_pocket += r_cushion; r_cushion = 0.0
 
     return r_pocket, r_drive, r_school, r_cushion, r_holidays, r_credit, r_clothes, r_auto
-# =====================================================================
-# ОБРАБОТЧИК CALLBACK И СЕТЕВОЙ ЗАПУСК ДВИЖКА (ФИНАЛЬНЫЙ БЛОК)
-# =====================================================================
-@bot.callback_query_handler(func=lambda call: True)
-def callback_inline(call):
-    try:
-        # ОБРАБОТКА СЖАТОГО ПАКЕТА ОСНОВНОГО ДОХОДА
-        if call.data.startswith("sm_"):
-            income = float(call.data.split("_")[1])
-            b = load_balances()
-            is_cushion_full = b["cushion_accumulated"] >= 100000.0
-            
-            # Динамический пересчет в момент клика по сохраненной формуле
-            _, r_pocket, r_drive, r_school, r_cushion, r_holidays, r_health, r_auto, r_monuments, r_clothes = calculate_cash_distribution(income, is_cushion_full)
-            
-            save_to_stats("основной", income, r_pocket, r_drive, r_school, r_cushion, r_holidays, r_health, r_auto, r_monuments, 0.0, r_clothes)
-            
-            b["cushion_accumulated"] += r_cushion
-            save_balances(b["credit"], b["cushion_accumulated"])
-            
-            bot.answer_callback_query(call.id, "Доход успешно зафиксирован!")
-            bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, 
-                                  text=call.message.text + "\n\n✅ **ДОХОД ПОДТВЕРЖДЕН И ЗАПИСАН В СВОДКУ**", parse_mode='Markdown')
-
-        # ОБРАБОТКА СЖАТОГО ПАКЕТА ПОДРАБОТОК
-        elif call.data.startswith("ss_"):
-            e2 = float(call.data.split("_")[1])
-            b = load_balances()
-            is_credit_done = b["credit"] <= 0.0
-            is_cushion_full = b["cushion_accumulated"] >= 100000.0
-            
-            # Динамический пересчет подработок в момент клика
-            r_pocket, r_drive, r_school, r_cushion, r_holidays, r_credit, r_clothes, r_auto = calculate_side_distribution(e2, is_credit_done, is_cushion_full)
-            
-            save_to_stats("подработка", e2, r_pocket, r_drive, r_school, r_cushion, r_holidays, 0, r_auto, 0, r_credit, r_clothes)
-            
-            b["credit"] = max(0.0, b["credit"] - r_credit)
-            b["cushion_accumulated"] += r_cushion
-            save_balances(b["credit"], b["cushion_accumulated"])
-            
-            bot.answer_callback_query(call.id, "Запись обновлена!")
-            bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, 
-                                  text=call.message.text + "\n\n✅ **ДОХОД ПОДТВЕРЖДЕН И ЗАПИСАН В СВОДКУ**", parse_mode='Markdown')
-    except Exception as e:
-        bot.answer_callback_query(call.id, "❌ Ошибка подтверждения (Code: `ERR_CB_FALLBACK`)")
-
-# =====================================================================
-# МАСКИРОВКА ПОД ВЕБ-СЕРВИС ДЛЯ RENDER
-# =====================================================================
-app = Flask('')
-
-@app.route('/')
-def home():
-    return "Финансовый движок полностью готов и активен!"
-
-def run_flask():
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
-
-if __name__ == '__main__':
-    threading.Thread(target=run_flask).start()
-    bot.infinity_polling()
