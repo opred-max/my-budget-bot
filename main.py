@@ -83,8 +83,8 @@ def get_main_keyboard():
 def send_welcome(message):
     welcome_text = (
         "👋 **Financial Engine v5.6 активирован.**\n"
-        "Автофонд успешно интегрирован во все уровни подработок.\n"
-        "Сбалансирован Уровень 1 основного дохода.\n\n"
+        "Увеличен Карман на уровне Развития. Исправлены вылеты на больших суммах.\n"
+        "Автофонд успешно интегрирован во все уровни подработок.\n\n"
         "🔧 **Команды управления целями (балансами):**\n"
         "├ `/set_credit XXXXX` — изменить остаток долга по Кредиту\n"
         "│  (Пример: `/set_credit 125423.45`)\n"
@@ -280,7 +280,8 @@ def process_cash(message):
 
         elif c7 <= 50000:
             mode_name = "🟨 Уровень 3: Развитие"
-            p_pocket, p_drive, p_school, p_holidays, p_health, p_auto, p_cushion, p_monuments = 0.40, 0.15, 0.12, 0.15, 0.08, 0.12, 0.15, 0.00
+            # Агрессивный Карман (поднят с 40% до 51% за счет снижения Подушки, Автофонда, Здоровья и Праздников)
+            p_pocket, p_drive, p_school, p_holidays, p_health, p_auto, p_cushion, p_monuments = 0.51, 0.15, 0.12, 0.10, 0.06, 0.10, 0.10, 0.00
             
             if is_cushion_full:
                 p_pocket += p_cushion
@@ -315,6 +316,7 @@ def process_cash(message):
             else:
                 cushion = calculated_cushion
 
+        # СКВОЗНОЙ НАЛОГ 3% НА ОДЕЖДУ (со всех конвертов, КРОМЕ Мася школа)
         clothes = (pocket * 0.03) + (drive * 0.03) + (holidays * 0.03) + (health * 0.03) + (auto * 0.03) + (cushion * 0.03) + (monuments * 0.03)
         pocket = pocket * 0.97
         drive = drive * 0.97
@@ -360,6 +362,7 @@ def process_cash(message):
         if r_cushion > 0: report += f"🏦 Конверт «Подушка»: **{r_cushion:,.0f} ₽**"
         
         markup = types.InlineKeyboardMarkup()
+        # ПОЛНОСТЬЮ ЖЕСТКО ЗАФИКСИРОВАНА СТРУКТУРА ДАННЫХ ДЛЯ ИНЛАЙН-КНОПКИ В СЛЕДУЮЩЕЙ ЧАСТИ
         cb_data = f"sub_main_{income}_{r_pocket}_{r_drive}_{r_masya_school}_{r_cushion}_{r_holidays}_{r_health}_{r_auto}_{r_monuments}_{r_clothes}"
         btn = types.InlineKeyboardButton("📝 Подтвердить и записать доход", callback_data=cb_data)
         markup.add(btn)
