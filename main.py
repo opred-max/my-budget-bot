@@ -34,8 +34,8 @@ def load_balances():
             if len(data) < 2:
                 return default_balances
             return {
-                "credit": max(0.0, float(data[0])),
-                "cushion_accumulated": max(0.0, float(data[1]))
+                "credit": max(0.0, float(data)),
+                "cushion_accumulated": max(0.0, float(data))
             }
     except:
         return default_balances
@@ -57,7 +57,7 @@ def save_to_stats(income_type, total, pocket, drive, school, cushion, holidays=0
     with open(STATS_FILE, "a", encoding="utf-8") as f:
         f.write(row)
 # =====================================================================
-# ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ И ИНТЕРФЕЙС БОТА (ВЕРСИЯ С ЧИСТЫМ МЕНЮ)
+# ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ И ИНТЕРФЕЙС БОТА
 # =====================================================================
 def validate_amount(text):
     try:
@@ -69,24 +69,22 @@ def validate_amount(text):
         return None
 
 def get_main_keyboard():
-    # Создаем аккуратное меню без кнопки балансов целей
     keyboard = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
     btn_cash = types.KeyboardButton("💵 Основной доход")
     btn_side = types.KeyboardButton("🚀 Подработка")
     btn_report = types.KeyboardButton("📊 Ежемесячный отчет")
-    
-    # Компактная раскладка: две кнопки сверху, одна широкая снизу
+    btn_status = types.KeyboardButton("⚙️ Мои Балансы и Цели")
     keyboard.add(btn_cash, btn_side)
-    keyboard.add(btn_report)
+    keyboard.add(btn_report, btn_status)
     return keyboard
 
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     welcome_text = (
-        "👋 **Financial Engine v5.9 [STABLE_RELEASE] активирован.**\n"
-        "Главное меню очищено. Лимиты callback-данных сжаты до 16 символов.\n"
-        "Успешно внедрена пропорция 65/35 для Выживания и Стабилизации.\n\n"
-        "🔧 **Команды управления целями (балансами):**\n"
+        "👋 **Financial Engine v5.9 [TAX_4_PERCENT] активирован.**\n"
+        "Налог на Одежду повышен до 4%. Устранены расхождения Кармана и Драйва.\n"
+        "Внедрены лимиты: Праздники (5.5к), Авто (5к), Памятники (2к везде).\n\n"
+        "🔧 **Команны управления целями (балансами):**\n"
         "├ `/set_credit XXXXX` — изменить остаток долга по Кредиту\n"
         "│  (Пример: `/set_credit 125423.45`)\n"
         "└ `/set_cushion XXXXX` — изменить баланс Подушки безопасности\n"
@@ -130,6 +128,16 @@ def set_cushion_balance(message):
 # =====================================================================
 # НАГЛЯДНЫЙ ДВУХМЕСЯЧНЫЙ ЕЖЕМЕСЯЧНЫЙ ОТЧЕТ
 # =====================================================================
+@bot.message_handler(func=lambda m: m.text == "⚙️ Мои Балансы и Цели")
+def show_balances_screen(message):
+    b = load_balances()
+    msg = (
+        f"⚙️ **ТЕКУЩЕЕ СОСТОЯНИЕ ЦЕЛЕЙ:**\n\n"
+        f"📉 Остаток по Кредиту: **{b['credit']:,.2f} ₽**\n"
+        f"🏦 Накоплено в Подушку: **{b['cushion_accumulated']:,.2f} ₽** / 100,000 ₽\n"
+    )
+    bot.send_message(message.chat.id, msg, parse_mode='Markdown')
+
 @bot.message_handler(func=lambda m: m.text == "📊 Ежемесячный отчет")
 def show_monthly_report(message):
     now = datetime.now()
@@ -219,12 +227,12 @@ def ask_cash(message):
     msg = bot.send_message(message.chat.id, "💵 Отлично! Введите общую сумму наличных от продаж:")
     bot.register_next_step_handler(msg, process_cash)
 def calculate_cash_distribution(income, is_cushion_full):
-    """Функция расчета основного дохода с налогом 4% и жесткими лимитами конвертов"""
+    """Функция расчета основного дохода с налогом 4% и жесткими лимитами"""
+    c7 = income * 0.40
     pocket, drive, holidays, health, auto, cushion, monuments, masya_school = [0.0]*8
     
     if income <= 37500:
         mode_name = "🟥 Уровень 1: Выживание (до 37.5к)"
-        c7 = income * 0.35         # Твоя доля 35%
         p_pocket, p_drive, p_school, p_holidays, p_health, p_auto, p_cushion, p_monuments = 0.68, 0.00, 0.12, 0.00, 0.08, 0.07, 0.05, 0.00
         if is_cushion_full:
             p_pocket += p_cushion
@@ -233,7 +241,6 @@ def calculate_cash_distribution(income, is_cushion_full):
 
     elif income <= 75000:
         mode_name = "🟧 Уровень 2: Стабилизация (от 37.5к до 75к)"
-        c7 = income * 0.35         # Твоя доля 35%
         p_pocket, p_drive, p_school, p_holidays, p_health, p_auto, p_cushion, p_monuments = 0.40, 0.15, 0.12, 0.15, 0.08, 0.12, 0.10, 0.00
         if is_cushion_full:
             p_pocket += p_cushion
@@ -242,28 +249,24 @@ def calculate_cash_distribution(income, is_cushion_full):
 
     elif income <= 125000:
         mode_name = "🟨 Уровень 3: Развитие (от 75к до 125к)"
-        c7 = income * 0.40         # Твоя доля 40%
         p_pocket, p_drive, p_school, p_holidays, p_health, p_auto, p_cushion, p_monuments = 0.50, 0.14, 0.12, 0.10, 0.06, 0.10, 0.07, 0.05
         if is_cushion_full:
             p_pocket += p_cushion
             p_cushion = 0.0
         pocket, drive, masya_school, cushion, holidays, health, auto, monuments = c7*p_pocket, c7*p_drive, c7*p_school, c7*p_cushion, c7*p_holidays, c7*p_health, c7*p_auto, c7*p_monuments
         
-        # Жесткий лимит на Памятники на уровне Развитие
         if monuments > 2000.0:
             pocket += (monuments - 2000.0)
             monuments = 2000.0
 
     else:
         mode_name = "♾ Уровень 4: Жирный режим (выше 125к)"
-        c7 = income * 0.40         # Твоя доля 40%
         p_pocket, p_drive, p_school, p_holidays, p_health, p_auto, p_cushion, p_monuments = 0.38, 0.15, 0.12, 0.10, 0.05, 0.10, 0.10, 0.05
         if is_cushion_full:
             p_pocket += p_cushion
             p_cushion = 0.0
         pocket, drive, masya_school, cushion, holidays, health, auto, monuments = c7*p_pocket, c7*p_drive, c7*p_school, c7*p_cushion, c7*p_holidays, c7*p_health, c7*p_auto, c7*p_monuments
         
-        # Инженерные жесткие ограничители (Лимиты Жирного режима)
         if holidays > 5500.0:
             pocket += (holidays - 5500.0)
             holidays = 5500.0
@@ -274,7 +277,7 @@ def calculate_cash_distribution(income, is_cushion_full):
             pocket += (monuments - 2000.0)
             monuments = 2000.0
 
-    # ПОВЫШЕННЫЙ СКВОЗНОЙ НАЛОГ 4% (со всех конвертов, КРОМЕ Мася школа)
+    # ПОВЫШЕННЫЙ СКВОЗНОЙ НАЛОГ 4% (со всех, КРОМЕ Мася школа)
     clothes = (pocket * 0.04) + (drive * 0.04) + (holidays * 0.04) + (health * 0.04) + (auto * 0.04) + (cushion * 0.04) + (monuments * 0.04)
     pocket, drive, holidays, health, auto, cushion, monuments = pocket*0.96, drive*0.96, holidays*0.96, health*0.96, auto*0.96, cushion*0.96, monuments*0.96
 
@@ -287,7 +290,6 @@ def calculate_cash_distribution(income, is_cushion_full):
     r_clothes = math.floor(clothes / 10) * 10
     r_cushion = math.floor(cushion / 10) * 10
     
-    # Карман поглощает остатки округлений копеек
     allocated_except_pocket = r_drive + r_holidays + r_health + r_auto + r_monuments + r_masya_school + r_clothes + r_cushion
     r_pocket = c7 - allocated_except_pocket
 
@@ -303,14 +305,7 @@ def process_cash(message):
 
         b = load_balances()
         is_cushion_full = b["cushion_accumulated"] >= 100000.0
-        
-        # Динамический расчет долей жены для правильного текста на экране
-        if income <= 75000:
-            wife_cash = income * 0.65
-            c7 = income * 0.35
-        else:
-            wife_cash = income * 0.60
-            c7 = income * 0.40
+        wife_cash, c7 = income * 0.60, income * 0.40
         
         mode_name, r_pocket, r_drive, r_masya_school, r_cushion, r_holidays, r_health, r_auto, r_monuments, r_clothes = calculate_cash_distribution(income, is_cushion_full)
 
@@ -318,8 +313,8 @@ def process_cash(message):
             f"📊 **РАСЧЕТ ОСНОВНОГО ДОХОДА ({income:,.0f} ₽)**\n"
             f"⚙️ Режим твоей доли: `{mode_name}`\n\n"
             f"💵 **Наличные (От продаж):**\n"
-            f"└ 👩 Жене наличными: **{wife_cash:,.0f} ₽**\n"
-            f"└ 🧔 Твоя чистая доля: **{c7:,.0f} ₽**\n\n"
+            f"└ 👩 Жене наличными (60%): **{wife_cash:,.0f} ₽**\n"
+            f"└ 🧔 Твоя чистая доля (40%): **{c7:,.0f} ₽**\n\n"
             f"🗂 **Распределение по конвертам:**\n"
         )
         if r_pocket > 0: report += f"🛍 Конверт «Карман»: **{r_pocket:,.0f} ₽**\n"
@@ -360,7 +355,9 @@ def process_side(message):
         is_credit_done = b["credit"] <= 0.0
         is_cushion_full = b["cushion_accumulated"] >= 100000.0
 
-        pocket, drive, credit, school, holidays, cushion, auto = [0.0] * 7
+        # Жесткое зануление локального пула перед распределением долей
+        pocket = drive = credit = school = holidays = cushion = auto = 0.0
+        level_name = ""
         
         if e2 > 15000:
             level_name = "🔥 5. ТУРБО Сверхдоход (Выше 15к)"
@@ -374,52 +371,48 @@ def process_side(message):
             elif is_cushion_full: pocket += rem_pool * 0.70; credit = rem_pool * 0.30
             else: credit, cushion = rem_pool * 0.30, rem_pool * 0.30; pocket += rem_pool * 0.40
         else:
-            if e2 <= 2000: p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion, p_auto = 0.54, 0.10, 0.06, 0.10, 0.00, 0.06, 0.08
-            elif e2 <= 5000: p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion, p_auto = 0.46, 0.15, 0.08, 0.10, 0.05, 0.08, 0.08
-            elif e2 <= 10000: p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion, p_auto = 0.42, 0.15, 0.15, 0.10, 0.07, 0.03, 0.08
-            else: p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion, p_auto = 0.40, 0.15, 0.15, 0.12, 0.06, 0.04, 0.08
+            if e2 <= 2000: 
+                level_name = "🌱 1. Микро (до 2к)"
+                p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion, p_auto = 0.54, 0.10, 0.06, 0.10, 0.00, 0.06, 0.08
+            elif e2 <= 5000: 
+                level_name = "📈 2. Стандарт (2к - 5к)"
+                p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion, p_auto = 0.46, 0.15, 0.08, 0.10, 0.05, 0.08, 0.08
+            elif e2 <= 10000: 
+                level_name = "🚀 3. Профи (5к - 10к)"
+                p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion, p_auto = 0.42, 0.15, 0.15, 0.10, 0.07, 0.03, 0.08
+            else: 
+                level_name = "⚡ 4. Мега Профи (10к - 15к)"
+                p_pocket, p_drive, p_credit, p_school, p_holidays, p_cushion, p_auto = 0.40, 0.15, 0.15, 0.12, 0.06, 0.04, 0.08
 
             if is_credit_done: p_cushion += p_credit; p_credit = 0.0
             if is_cushion_full: p_pocket += p_cushion; p_cushion = 0.0
             pocket, drive, credit, school, holidays, cushion, auto = e2*p_pocket, e2*p_drive, e2*p_credit, e2*p_school, e2*p_holidays, e2*p_cushion, e2*p_auto
 
-        # СКВОЗНОЙ НАЛОГ 4% НА ПОДРАБОТКАХ (со всех, КРОМЕ Школы)
+        # СКВОЗНОЙ НАЛОГ НА ГАРДЕРОБ 4% (Школа не облагается)
         clothes = (pocket * 0.04) + (drive * 0.04) + (holidays * 0.04) + (cushion * 0.04) + (credit * 0.04) + (auto * 0.04)
         pocket, drive, holidays, cushion, credit, auto = pocket * 0.96, drive * 0.96, holidays * 0.96, cushion * 0.96, credit * 0.96, auto * 0.96
 
-        r_pocket = math.floor(pocket / 10) * 10
         r_drive = math.floor(drive / 10) * 10
         r_school = math.floor(school / 10) * 10
         r_holidays = math.floor(holidays / 10) * 10
         r_clothes = math.floor(clothes / 10) * 10
         r_cushion = math.floor(cushion / 10) * 10
         r_auto = math.floor(auto / 10) * 10
+        r_credit = math.floor(credit / 10) * 10
 
-        overflow_to_pocket = 0.0
-        if 0 < r_drive < 100: overflow_to_pocket += r_drive; r_drive = 0.0
-        if 0 < r_holidays < 100: overflow_to_pocket += r_holidays; r_holidays = 0.0
-        if 0 < r_clothes < 100: overflow_to_pocket += r_clothes; r_clothes = 0.0
-        if 0 < r_cushion < 100: overflow_to_pocket += r_cushion; r_cushion = 0.0
-        if 0 < r_auto < 100: overflow_to_pocket += r_auto; r_auto = 0.0
-        r_pocket += overflow_to_pocket
+        # Микро-балансировщик мелких сумм (перелив остатков до 100р в Карман)
+        if 0 < r_drive < 100: r_drive = 0.0
+        if 0 < r_holidays < 100: r_holidays = 0.0
+        if 0 < r_clothes < 100: r_clothes = 0.0
+        if 0 < r_cushion < 100: r_cushion = 0.0
+        if 0 < r_auto < 100: r_auto = 0.0
+        if 0 < r_credit < 100: r_credit = 0.0
 
-        if 0 < r_school < 100:
-            needed_diff = 100.0 - r_school
-            if r_pocket >= needed_diff: r_pocket -= needed_diff; r_school = 100.0
-            else: r_pocket += r_school; r_school = 0.0
-        elif r_school == 0.0 and e2 >= 300.0:
-            if r_pocket >= 100.0: r_pocket -= 100.0; r_school = 100.0
+        if 0 < r_school < 100: r_school = 100.0
 
-        if credit > 0:
-            allocated_except_credit = r_pocket + r_drive + r_school + r_holidays + r_cushion + r_clothes + r_auto
-            r_credit = e2 - allocated_except_credit
-            if 0 < r_credit < 100: r_pocket += r_credit; r_credit = 0.0
-            elif r_credit < 0: r_pocket += r_credit; r_credit = 0.0
-        else:
-            r_credit = 0.0
-            allocated_except_cushion = r_pocket + r_drive + r_school + r_holidays + r_clothes + r_auto
-            r_cushion = e2 - allocated_except_cushion
-            if 0 < r_cushion < 100: r_pocket += r_cushion; r_cushion = 0.0
+        # КАРМАН СЛУЖИТ ВЕРХНИМ СТАБИЛЬНЫМ БАЛАНСИРОМ ВСЕЙ СУММЫ ПОДРАБОТКИ
+        allocated_except_pocket = r_drive + r_school + r_holidays + r_clothes + r_cushion + r_auto + r_credit
+        r_pocket = e2 - allocated_except_pocket
 
         report = (
             f"🚀 **РАСЧЕТ ПОДРАБОТКИ ({e2:,.0f} ₽)**\n"
@@ -446,7 +439,7 @@ def process_side(message):
 
 def calculate_side_distribution(e2, is_credit_done, is_cushion_full):
     """Вспомогательная функция для динамического пересчета подработок в момент клика с налогом 4%"""
-    pocket, drive, credit, school, holidays, cushion, auto = [0.0] * 7
+    pocket = drive = credit = school = holidays = cushion = auto = 0.0
     if e2 > 15000:
         pocket = 6000.0
         leftover = e2 - 6000.0
@@ -468,33 +461,25 @@ def calculate_side_distribution(e2, is_credit_done, is_cushion_full):
 
     clothes = (pocket * 0.04) + (drive * 0.04) + (holidays * 0.04) + (cushion * 0.04) + (credit * 0.04) + (auto * 0.04)
     pocket, drive, holidays, cushion, credit, auto = pocket*0.96, drive*0.96, holidays*0.96, cushion*0.96, credit*0.96, auto*0.96
-    r_pocket, r_drive, r_school, r_holidays, r_clothes, r_cushion, r_auto = math.floor(pocket/10)*10, math.floor(drive/10)*10, math.floor(school/10)*10, math.floor(holidays/10)*10, math.floor(clothes/10)*10, math.floor(cushion/10)*10, math.floor(auto/10)*10
+    
+    r_drive = math.floor(drive/10)*10
+    r_school = math.floor(school/10)*10
+    r_holidays = math.floor(holidays/10)*10
+    r_clothes = math.floor(clothes/10)*10
+    r_cushion = math.floor(cushion/10)*10
+    r_auto = math.floor(auto/10)*10
+    r_credit = math.floor(credit/10)*10
 
-    overflow_to_pocket = 0.0
-    if 0 < r_drive < 100: overflow_to_pocket += r_drive; r_drive = 0.0
-    if 0 < r_holidays < 100: overflow_to_pocket += r_holidays; r_holidays = 0.0
-    if 0 < r_clothes < 100: overflow_to_pocket += r_clothes; r_clothes = 0.0
-    if 0 < r_cushion < 100: overflow_to_pocket += r_cushion; r_cushion = 0.0
-    if 0 < r_auto < 100: overflow_to_pocket += r_auto; r_auto = 0.0
-    r_pocket += overflow_to_pocket
+    if 0 < r_drive < 100: r_drive = 0.0
+    if 0 < r_holidays < 100: r_holidays = 0.0
+    if 0 < r_clothes < 100: r_clothes = 0.0
+    if 0 < r_cushion < 100: r_cushion = 0.0
+    if 0 < r_auto < 100: r_auto = 0.0
+    if 0 < r_credit < 100: r_credit = 0.0
+    if 0 < r_school < 100: r_school = 100.0
 
-    if 0 < r_school < 100:
-        needed_diff = 100.0 - r_school
-        if r_pocket >= needed_diff: r_pocket -= needed_diff; r_school = 100.0
-        else: r_pocket += r_school; r_school = 0.0
-    elif r_school == 0.0 and e2 >= 300.0:
-        if r_pocket >= 100.0: r_pocket -= 100.0; r_school = 100.0
-
-    if credit > 0:
-        allocated_except_credit = r_pocket + r_drive + r_school + r_holidays + r_cushion + r_clothes + r_auto
-        r_credit = e2 - allocated_except_credit
-        if 0 < r_credit < 100: r_pocket += r_credit; r_credit = 0.0
-        elif r_credit < 0: r_pocket += r_credit; r_credit = 0.0
-    else:
-        r_credit = 0.0
-        allocated_except_cushion = r_pocket + r_drive + r_school + r_holidays + r_clothes + r_auto
-        r_cushion = e2 - allocated_except_cushion
-        if 0 < r_cushion < 100: r_pocket += r_cushion; r_cushion = 0.0
+    allocated_except_pocket = r_drive + r_school + r_holidays + r_clothes + r_cushion + r_auto + r_credit
+    r_pocket = e2 - allocated_except_pocket
 
     return r_pocket, r_drive, r_school, r_cushion, r_holidays, r_credit, r_clothes, r_auto
 # =====================================================================
@@ -505,7 +490,6 @@ def callback_inline(call):
     try:
         # ОБРАБОТКА СЖАТОГО ПАКЕТА ОСНОВНОГО ДОХОДА
         if call.data.startswith("sm_"):
-            # Берем элемент числового значения дохода после разделения строки по префиксу
             income = float(call.data.split("_")[1])
             b = load_balances()
             is_cushion_full = b["cushion_accumulated"] >= 100000.0
@@ -524,13 +508,12 @@ def callback_inline(call):
 
         # ОБРАБОТКА СЖАТОГО ПАКЕТА ПОДРАБОТОК
         elif call.data.startswith("ss_"):
-            # Берем элемент числового значения подработки после разделения строки по префиксу
             e2 = float(call.data.split("_")[1])
             b = load_balances()
             is_credit_done = b["credit"] <= 0.0
             is_cushion_full = b["cushion_accumulated"] >= 100000.0
             
-            # Динамический пересчет подработок в момент клика
+            # Динамический пересчет подработок в момент клика по новой стабильной схеме
             r_pocket, r_drive, r_school, r_cushion, r_holidays, r_credit, r_clothes, r_auto = calculate_side_distribution(e2, is_credit_done, is_cushion_full)
             
             save_to_stats("подработка", e2, r_pocket, r_drive, r_school, r_cushion, r_holidays, 0, r_auto, 0, r_credit, r_clothes)
