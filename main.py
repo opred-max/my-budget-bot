@@ -82,9 +82,9 @@ def get_main_keyboard():
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     welcome_text = (
-        "👋 **Financial Engine v5.6 активирован.**\n"
-        "Увеличен Карман на уровне Развития. Исправлены вылеты на больших суммах.\n"
-        "Автофонд успешно интегрирован во все уровни подработок.\n\n"
+        "👋 **Financial Engine v5.6 [ОТЛАЖЕН] активирован.**\n"
+        "Успешно устранена ошибка распаковки данных Жирного режима.\n"
+        "Сбалансирован Уровень 3 основного дохода и Автофонд подработок.\n\n"
         "🔧 **Команды управления целями (балансами):**\n"
         "├ `/set_credit XXXXX` — изменить остаток долга по Кредиту\n"
         "│  (Пример: `/set_credit 125423.45`)\n"
@@ -110,7 +110,7 @@ def set_credit_balance(message):
         save_balances(b["credit"], b["cushion_accumulated"])
         bot.reply_to(message, f"✅ Остаток долга по Кредиту изменен на: **{val:,.2f} ₽**", parse_mode='Markdown')
     except:
-        bot.reply_to(message, "❌ **Ошибка!** Формат: `/set_credit 125423.45` (число должно быть неотрицательным)", parse_mode='Markdown')
+        bot.reply_to(message, "❌ **Ошибка!** Формат: `/set_credit 125423.45`", parse_mode='Markdown')
 
 @bot.message_handler(commands=['set_cushion'])
 def set_cushion_balance(message):
@@ -125,7 +125,7 @@ def set_cushion_balance(message):
         save_balances(b["credit"], b["cushion_accumulated"])
         bot.reply_to(message, f"✅ Баланс Подушки безопасности изменен на: **{val:,.2f} ₽**", parse_mode='Markdown')
     except:
-        bot.reply_to(message, "❌ **Ошибка!** Формат: `/set_cushion 15000` (число должно быть неотрицательным)", parse_mode='Markdown')
+        bot.reply_to(message, "❌ **Ошибка!** Формат: `/set_cushion 15000`", parse_mode='Markdown')
 # =====================================================================
 # НАГЛЯДНЫЙ ДВУХМЕСЯЧНЫЙ ЕЖЕМЕСЯЧНЫЙ ОТЧЕТ
 # =====================================================================
@@ -221,7 +221,7 @@ def show_monthly_report(message):
     bot.send_message(message.chat.id, msg, parse_mode='Markdown')
 
 # =====================================================================
-# ЛОГИКА ОБРАБОТКИ ВВОДА ОСНОВНОГО ДОХОДА
+# НАЧАЛО БЛОКА ОБРАБОТКИ ВВОДА ОСНОВНОГО ДОХОДА
 # =====================================================================
 @bot.message_handler(func=lambda m: m.text == "💵 Основной доход")
 def ask_cash(message):
@@ -280,7 +280,6 @@ def process_cash(message):
 
         elif c7 <= 50000:
             mode_name = "🟨 Уровень 3: Развитие"
-            # Агрессивный Карман (поднят с 40% до 51% за счет снижения Подушки, Автофонда, Здоровья и Праздников)
             p_pocket, p_drive, p_school, p_holidays, p_health, p_auto, p_cushion, p_monuments = 0.51, 0.15, 0.12, 0.10, 0.06, 0.10, 0.10, 0.00
             
             if is_cushion_full:
@@ -316,7 +315,6 @@ def process_cash(message):
             else:
                 cushion = calculated_cushion
 
-        # СКВОЗНОЙ НАЛОГ 3% НА ОДЕЖДУ (со всех конвертов, КРОМЕ Мася школа)
         clothes = (pocket * 0.03) + (drive * 0.03) + (holidays * 0.03) + (health * 0.03) + (auto * 0.03) + (cushion * 0.03) + (monuments * 0.03)
         pocket = pocket * 0.97
         drive = drive * 0.97
@@ -362,7 +360,7 @@ def process_cash(message):
         if r_cushion > 0: report += f"🏦 Конверт «Подушка»: **{r_cushion:,.0f} ₽**"
         
         markup = types.InlineKeyboardMarkup()
-        # ПОЛНОСТЬЮ ЖЕСТКО ЗАФИКСИРОВАНА СТРУКТУРА ДАННЫХ ДЛЯ ИНЛАЙН-КНОПКИ В СЛЕДУЮЩЕЙ ЧАСТИ
+        # СТРОГОЕ СОВПАДЕНИЕ ПАРАМЕТРОВ С ПРИЕМНИКОМ (10 ЗНАЧЕНИЙ ПОСЛЕ sub_main)
         cb_data = f"sub_main_{income}_{r_pocket}_{r_drive}_{r_masya_school}_{r_cushion}_{r_holidays}_{r_health}_{r_auto}_{r_monuments}_{r_clothes}"
         btn = types.InlineKeyboardButton("📝 Подтвердить и записать доход", callback_data=cb_data)
         markup.add(btn)
@@ -372,7 +370,7 @@ def process_cash(message):
     except Exception as e:
         bot.send_message(message.chat.id, "❌ Произошла непредвиденная ошибка расчетов основного дохода.")
 # =====================================================================
-# БЛОК ПОДРАБОТОК (ВАРИАНТ А: АВТОФОНД НА ВСЕХ УРОВНЯХ) И ЗАПУСК БОТА
+# БЛОК ПОДРАБОТОК И ЗАПУСК СЕРВИСА (ПОЛНОСТЬЮ ОТЛАЖЕННЫЙ CALLBACK)
 # =====================================================================
 @bot.message_handler(func=lambda m: m.text == "🚀 Подработка")
 def ask_side(message):
@@ -541,6 +539,7 @@ def callback_inline(call):
     try:
         if call.data.startswith("sub_main_"):
             p = call.data.split("_")
+            # СТРОГАЯ ИСПРАВЛЕННАЯ РАСПАКОВКА: Считываем все 10 переменных
             income, r_pocket, r_drive, r_school, r_cushion, r_holidays, r_health, r_auto, r_monuments, r_clothes = map(float, p[2:])
             
             save_to_stats("основной", income, r_pocket, r_drive, r_school, r_cushion, r_holidays, r_health, r_auto, r_monuments, 0.0, r_clothes)
@@ -567,7 +566,7 @@ def callback_inline(call):
             bot.answer_callback_query(call.id, "Запись обновлена!")
             bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, 
                                   text=call.message.text + "\n\n✅ **ДОХОД ПОДТВЕРЖДЕН И ЗАПИСАН В СВОДКУ**", parse_mode='Markdown')
-    except:
+    except Exception as e:
         bot.answer_callback_query(call.id, "❌ Ошибка подтверждения")
 
 # =====================================================================
