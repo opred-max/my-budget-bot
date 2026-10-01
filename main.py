@@ -6,7 +6,8 @@ import math
 from flask import Flask
 import threading
 import logging
-from telebot.apihelper import TelegramError
+# ИСПРАВЛЕНО: Импортируем ApiException вместо устаревшего TelegramError
+from telebot.apihelper import ApiException
 
 # Настройка логирования для отслеживания ошибок на хостинге
 logging.basicConfig(level=logging.INFO)
@@ -31,7 +32,6 @@ callback_lock = threading.Lock()
 # =====================================================================
 # СИСТЕМА ХРАНЕНИЯ ДАННЫХ (БЕЗОПАСНАЯ СБОРКА СТРОКИ)
 # =====================================================================
-# ИСПРАВЛЕНО (Пункт 1): Имя аргумента приведено к единому стандарту 'school'
 def save_to_stats(*, income_type, total, pocket, drive, school, cushion=0.0, holidays=0.0, health=0.0, auto=0.0, monuments=0.0, credit=0.0, clothes=0.0):
     """
     Записывает распределенный доход в файл статистики (Строго 14 колонок).
@@ -57,13 +57,10 @@ def save_to_stats(*, income_type, total, pocket, drive, school, cushion=0.0, hol
 def calculate_cash_distribution(income):
     pocket = drive = holidays = health = auto = monuments = masya_school = 0.0
     
-    # 1. Прогрессивное сглаживание долей супругов (без перекоса на 75к)
-    if income <= 75000:
-        wife_cash = income * 0.65
-        c7 = income * 0.35
-    else:
-        wife_cash = (75000 * 0.65) + ((income - 75000) * 0.60)
-        c7 = income - wife_cash
+    # 1. Рассчитываем динамический процент жены плавно
+    p_wife = 0.48 + (0.25 / (1.0 + (income / 45000.0)))
+    wife_cash = income * p_wife
+    c7 = income - wife_cash
 
     # 2. Определение динамических процентов твоей доли
     factor = 1.0 / (1.0 + (income / 50000.0))
@@ -88,8 +85,7 @@ def calculate_cash_distribution(income):
     clothes = (pocket + drive + holidays + health + auto + monuments) * 0.04
     pocket, drive, holidays, health, auto, monuments = pocket*0.96, drive*0.96, holidays*0.96, health*0.96, auto*0.96, monuments*0.96
 
-    # 4. Применение жестких лимитов ПОСЛЕ налога.
-    # Излишки сразу переливаются в pocket, так как мы изменили шаг 6, просадки больше нет.
+    # 4. Применение жестких лимитов ПОСЛЕ налога
     if income > 75000 and monuments > 2000.0:
         pocket += (monuments - 2000.0)
         monuments = 2000.0
@@ -107,8 +103,8 @@ def calculate_cash_distribution(income):
     r_masya_school = math.floor(masya_school / 10) * 10
     r_clothes = math.floor(clothes / 10) * 10
     
-    # 6. ИСПРАВЛЕНО (Пункт 3): Рассчитываем Карман как чистый математический остаток от c7_net.
-    # Больше нет формулы сложения r_pocket += ..., которая задваивала лимиты. Баланс идеален до копейки.
+    # 6. Рассчитываем Карман как чистый математический остаток от c7_net.
+    # Налог на одежду r_clothes жестко включен в сумму распределенных средств.
     c7_net = c7 - clothes
     allocated_except_pocket = r_drive + r_holidays + r_health + r_auto + r_monuments + r_masya_school + r_clothes
     r_pocket = c7_net - allocated_except_pocket
@@ -192,7 +188,7 @@ def is_menu_command(text):
 def send_welcome(message):
     welcome_text = (
         "👋 **Financial Engine v8.5 [STABLE PRODUCTION] активирован.**\n"
-        "Ликвидирована уязвимость Double-Click и задваивание лимитов Кармана.\n"
+        "Ликвидирована уязвимость Скриншот-краша ApiException.\n"
         "Имена позиционных аргументов в подработке полностью синхронизированы.\n\n"
         "Используй кнопки меню для расчетов 👇"
     )
@@ -233,7 +229,6 @@ def process_cash(message):
         if r_masya_school > 0: report += f"🎒 Мася школа: **{r_masya_school:,.0f} ₽**\n"
         if r_monuments > 0: report += f"🪦 Конверт «Памятники»: **{r_monuments:,.0f} ₽**\n"
         
-        # Генерируем уникальный временной хэш транзакции (Защита от double-click)
         tx_hash = f"sm_{income}_{datetime.now().strftime('%M%S%f')}"
         markup = types.InlineKeyboardMarkup()
         markup.add(types.InlineKeyboardButton("📝 Подтвердить и записать доход", callback_data=tx_hash))
@@ -318,13 +313,12 @@ def show_monthly_report(message):
     bot.send_message(message.chat.id, msg, parse_mode='Markdown')
 
 # =====================================================================
-# ИСПРАВЛЕННЫЙ CALLBACK ОБРАБОТЧИК (ИДЕМПОТЕНТНОСТЬ ПРОТИВ DOUBLE-CLICK)
+# ИСПРАВЛЕННЫЙ CALLBACK ОБРАБОТЧИК (КЛАСС КРАША ОБНОВЛЕН)
 # =====================================================================
 @bot.callback_query_handler(func=lambda call: True)
 def callback_inline(call):
     global processed_callbacks
     try:
-        # Проверяем уникальный хэш транзакции на дубликат в памяти
         with callback_lock:
             if call.data in processed_callbacks:
                 bot.answer_callback_query(call.id, "Эта транзакция уже была записана!")
@@ -343,16 +337,16 @@ def callback_inline(call):
             bot.answer_callback_query(call.id, "Доход успешно зафиксирован!")
             try:
                 bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=call.message.text + "\n\n✅ **ДОХОД ПОДТВЕРЖДЕН И ЗАПИСАН**", parse_mode='Markdown')
-            except TelegramError: pass 
+            # ИСПРАВЛЕНО: Заменили устаревший импорт на ApiException
+            except ApiException: pass 
             
         elif action == "ss":
-            # ИСПРАВЛЕНО (Пункт 1): Вызов save_to_stats изменен — аргумент school=r_school теперь совпадает с объявлением функции
             level_name, r_pocket, r_drive, r_school, r_holidays, r_auto, r_clothes = calculate_side_distribution(amount)
             save_to_stats(income_type="подработка", total=amount, pocket=r_pocket, drive=r_drive, school=r_school, holidays=r_holidays, auto=r_auto, clothes=r_clothes)
             bot.answer_callback_query(call.id, "Запись обновлена!")
             try:
                 bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=call.message.text + "\n\n✅ **ПОДРАБОТКА ПОДТВЕРЖДЕНА И ЗАПИСАНА**", parse_mode='Markdown')
-            except TelegramError: pass
+            except ApiException: pass
     except Exception as e:
         logging.error(f"Ошибка в callback: {e}")
         bot.answer_callback_query(call.id, "❌ Ошибка подтверждения")
