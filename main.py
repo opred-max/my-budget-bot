@@ -7,6 +7,7 @@ from flask import Flask
 import threading
 import logging
 from telebot.apihelper import ApiException
+from collections import deque
 
 # Настройка логирования для отслеживания ошибок на хостинге
 logging.basicConfig(level=logging.INFO)
@@ -25,8 +26,8 @@ STATS_FILE = "monthly_stats.txt"
 file_lock = threading.Lock()
 callback_lock = threading.Lock()
 
-# Хранилище хэшей транзакций (Идемпотентность)
-processed_callbacks = set()
+# Потокобезопасная очередь для защиты от дублирования транзакций
+processed_callbacks = deque(maxlen=200)
 
 # =====================================================================
 # СИСТЕМА ХРАНЕНИЯ ДАННЫХ (БЕЗОПАСНАЯ СБОРКА СТРОКИ)
@@ -50,20 +51,23 @@ def save_to_stats(*, income_type, total, pocket, drive, school, cushion=0.0, hol
     except Exception as e:
         logging.error(f"Ошибка записи статистики: {e}")
 # =====================================================================
-# МАТЕМАТИЧЕСКОЕ ЯДРО: ОСНОВНОЙ ДОХОД (ОКРУГЛЕНИЕ ВСЕХ КОНВЕРТОВ ДО 100₽)
+# МАТЕМАТИЧЕСКОЕ ЯДРО: ОСНОВНОЙ ДОХОД
 # =====================================================================
 def calculate_cash_distribution(income):
     pocket = drive = holidays = health = auto = monuments = masya_school = 0.0
     
-    # 1. Динамический процент жены строго через точки (30к -> 70%) и (69к -> 60%)
+    # 1. Плавный график долей супругов (30к -> 70%) и (69к -> 60%)
     p_wife = 0.70 - (0.10 * (income - 30000.0) / 39000.0)
     p_wife = max(0.48, min(0.73, p_wife))
     
-    # Расчет доли жены с округлением вверх до 100 рублей
     wife_cash = math.ceil((income * p_wife) / 100) * 100
     c7 = income - wife_cash
 
-    # 2. Динамические проценты конвертов твоей доли
+    # 2. Налог 4% на Одежду (Гардероб) напрямую от полной чистой доли c7
+    clothes = c7 * 0.04
+    c7_usable = c7 - clothes
+
+    # 3. Динамические проценты конвертов внутри пригодной для распределения доли c7_usable
     factor = 1.0 / (1.0 + (income / 50000.0))
     p_health = 0.05 + (0.03 * factor)
     p_school = 0.12
@@ -72,32 +76,36 @@ def calculate_cash_distribution(income):
     p_holidays = 0.11 - (0.11 * factor)
     p_monuments = 0.05 - (0.05 * factor)
     
-    # Базовый чистый Карман забирает остаток процентов до 100%
+    # Режим Выживания
+    if income <= 50000.0:
+        p_drive = 0.0      
+        p_holidays = 0.0   
+
     p_pocket = 1.0 - (p_drive + p_school + p_holidays + p_health + p_auto + p_monuments)
 
-    # Первичное распределение долей от чистой части c7
-    pocket = c7 * p_pocket
-    drive = c7 * p_drive
-    masya_school = c7 * p_school
-    holidays = c7 * p_holidays
-    health = c7 * p_health
-    auto = c7 * p_auto
-    monuments = c7 * p_monuments
-    
-    # 3. ИСПРАВЛЕНО (Пункт 3): Налог 4% считается ТОЛЬКО от целевых конвертов, Карман исключен!
-    clothes = (drive + holidays + health + auto + monuments) * 0.04
-    drive, holidays, health, auto, monuments = drive*0.96, holidays*0.96, health*0.96, auto*0.96, monuments*0.96
+    # Распределение сумм
+    pocket = c7_usable * p_pocket
+    drive = c7_usable * p_drive
+    masya_school = c7_usable * p_school
+    holidays = c7_usable * p_holidays
+    health = c7_usable * p_health
+    auto = c7_usable * p_auto
+    monuments = c7_usable * p_monuments
 
-    # 4. Применение жестких лимитов ПОСЛЕ налога (излишки уходят в Карман)
+    # Включение Памятников строго при условии, что доля c7 > 25 000 руб
+    if c7 <= 25000.0:
+        pocket += monuments  
+        monuments = 0.0
+
+    # 4. Применение жестких верхних лимитов
     if income > 75000 and monuments > 2000.0:
-        pocket += (monuments - 2000.0)
-        monuments = 2000.0
+        pocket += (monuments - 2000.0); monuments = 2000.0
     if income > 125000:
         if holidays > 5500.0: pocket += (holidays - 5500.0); holidays = 5500.0
         if auto > 5000.0: pocket += (auto - 5000.0); auto = 5000.0
         if monuments > 2000.0: pocket += (monuments - 2000.0); monuments = 2000.0
 
-    # 5. Округление абсолютно всех целевых фондов строго вниз до 100 рублей
+    # 5. Округление целевых фондов строго вниз до 100 рублей
     r_drive = math.floor(drive / 100) * 100
     r_holidays = math.floor(holidays / 100) * 100
     r_health = math.floor(health / 100) * 100
@@ -106,19 +114,19 @@ def calculate_cash_distribution(income):
     r_masya_school = math.floor(masya_school / 100) * 100
     r_clothes = math.floor(clothes / 100) * 100
     
-    # 6. ИСПРАВЛЕНО (Дефект 4): Карман теперь тоже СТРОГО кратен 100 рублям!
-    allocated_targets = r_drive + r_holidays + r_health + r_auto + r_monuments + r_masya_school + r_clothes
-    raw_pocket = (c7 - r_clothes) - (allocated_targets - r_clothes)
-    r_pocket = math.floor(raw_pocket / 100) * 100
+    # 6. Расчет r_pocket и r_cushion без неконсистентного смещения баз
+    allocated_except_pocket_and_clothes = r_drive + r_holidays + r_health + r_auto + r_monuments + r_masya_school
     
-    # Технический хвост (копейки и рубли округления) уходит в колонку кубышки (cushion),
-    # чтобы математический баланс сходился с c7 до копейки, но все конверты на экране были круглыми.
-    r_cushion = c7 - (allocated_targets + r_pocket)
+    # Расчет Кармана как остатка от c7_usable с защитой max(0.0, ...) от минуса
+    r_pocket = max(0.0, math.floor((c7_usable - allocated_except_pocket_and_clothes) / 100) * 100)
+    
+    # Техническая сдача округлений собирается относительно грязного c7, полностью закрывая баланс до копейки
+    r_cushion = c7 - (allocated_except_pocket_and_clothes + r_pocket + r_clothes)
 
-    mode_name = f"Точный график (Жена: {p_wife*100:.1f}% | Ты: {(1-p_wife)*100:.1f}%)"
+    mode_name = f"Динамический режим (Жена: {p_wife*100:.1f}% | Ты: {(1-p_wife)*100:.1f}%)"
     return mode_name, r_pocket, r_drive, r_masya_school, r_holidays, r_health, r_auto, r_monuments, r_clothes, wife_cash, c7, r_cushion
 # =====================================================================
-# МАТЕМАТИЧЕСКОЕ ЯДРО: ПОДРАБОТКИ (ПОРЯДОК СИНХРОНИЗИРОВАН)
+# МАТЕМАТИЧЕСКОЕ ЯДРО: ПОДРАБОТКИ
 # =====================================================================
 def calculate_side_distribution(e2):
     pocket = drive = school = holidays = auto = 0.0
@@ -128,7 +136,7 @@ def calculate_side_distribution(e2):
         pocket = 6000.0
         leftover = e2 - 6000.0
         drive, school, holidays, auto = leftover * 0.10, leftover * 0.10, leftover * 0.05, leftover * 0.10
-        pocket += leftover * 0.65  
+        pocket += leftover * 0.65 
     else:
         if e2 <= 2000: 
             level_name = "🌱 1. Микро (до 2к)"
@@ -165,7 +173,7 @@ def calculate_side_distribution(e2):
     allocated_except_pocket = r_drive + r_school + r_holidays + r_auto + r_clothes
     r_pocket = max(0.0, e2 - allocated_except_pocket)
 
-    # ИСПРАВЛЕНО (Пункты 1 и 2): Жесткий порядок возврата переменных! r_auto на 6 месте, r_clothes на 7.
+    # Жесткий порядок возврата переменных: r_auto на 6 месте, r_clothes на 7.
     return level_name, r_pocket, r_drive, r_school, r_holidays, r_auto, r_clothes
 
 # =====================================================================
@@ -174,7 +182,7 @@ def calculate_side_distribution(e2):
 def validate_amount(text):
     try:
         val = float(text.strip().replace(',', '.'))
-        if val <= 0 or val > 9999999: return None  # Ограничение длины ввода против флуда байтами
+        if val <= 0 or val > 9999999: return None
         return val
     except ValueError:
         return None
@@ -190,7 +198,6 @@ def get_main_keyboard():
 
 def is_menu_command(text, chat_id):
     if text in ["💵 Основной доход", "🚀 Подработка", "📊 Ежемесячный отчет", "/start", "/help"]:
-        # ИСПРАВЛЕНО (Дефект 1 UI): Полностью сбрасываем застрявшие шаги ввода при клике на меню
         bot.clear_step_handler_by_chat_id(chat_id)
         return True
     return False
@@ -200,9 +207,9 @@ def is_menu_command(text, chat_id):
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     welcome_text = (
-        "👋 **Financial Engine v9.0 [CEIL EDITION] активирован.**\n"
-        "Основной доход: доля жены теперь округляется строго вверх до 100 ₽.\n"
-        "Твои целевые конверты бьются по 100 ₽, подработки — по 10 ₽.\n\n"
+        "👋 **Financial Engine v9.3 [STABLE PRO] активирован.**\n"
+        "Синхронизирован порядок распаковки подработок в хэндлере и callback.\n"
+        "Данные Автофонда и Гардероба больше не будут путаться в логах базы.\n\n"
         "Используй кнопки меню для расчетов 👇"
     )
     bot.send_message(message.chat.id, welcome_text, reply_markup=get_main_keyboard(), parse_mode='Markdown')
@@ -216,7 +223,7 @@ def process_cash(message):
     if is_menu_command(message.text, message.chat.id): return
     income = validate_amount(message.text)
     if income is None:
-        msg = bot.send_message(message.chat.id, "❌ **Неверный формат числа!** Пожалуйста, введите положительное число:")
+        msg = bot.send_message(message.chat.id, "❌ **Неверный формат числа!** Введите положительное число:")
         bot.register_next_step_handler(msg, process_cash)
         return
 
@@ -225,11 +232,11 @@ def process_cash(message):
 
         report = (
             f"📊 **РАСЧЕТ ОСНОВНОГО ДОХОДА ({income:,.0f} ₽)**\n"
-            f"⚙️ Режим: `{mode_name}`\n\n"
+            f"⚙️ `{mode_name}`\n\n"
             f"💵 **Наличные (От продаж):**\n"
-            f"└ 👩 Жене наличными (Вверх до 100 ₽): **{wife_cash:,.0f} ₽**\n"
+            f"└ 👩 Жене наличными: **{wife_cash:,.0f} ₽**\n"
             f"└ 🧔 Твоя чистая доля: **{c7:,.0f} ₽**\n\n"
-            f"🗂 **Распределение по конвертам (Шаг 100 ₽):**\n"
+            f"🗂 **Распределение по конвертам:**\n"
             f"🛍 Конверт «Карман»: **{r_pocket:,.0f} ₽**\n"
         )
         if r_drive > 0: report += f"🏎 Конверт «Драйв»: **{r_drive:,.0f} ₽**\n"
@@ -239,7 +246,6 @@ def process_cash(message):
         if r_auto > 0: report += f"🚗 Автофонд: **{r_auto:,.0f} ₽**\n"
         if r_school > 0: report += f"🎒 Мася школа: **{r_school:,.0f} ₽**\n"
         if r_monuments > 0: report += f"🪦 Конверт «Памятники»: **{r_monuments:,.0f} ₽**\n"
-        if r_cushion > 0: report += f"🪙 Кубышка (Остаток округлений): **{r_cushion:,.2f} ₽**\n"
         
         tx_hash = f"sm_{int(income)}_{datetime.now().strftime('%M%S')}"
         markup = types.InlineKeyboardMarkup()
@@ -258,7 +264,7 @@ def process_side(message):
     if is_menu_command(message.text, message.chat.id): return
     e2 = validate_amount(message.text)
     if e2 is None:
-        msg = bot.send_message(message.chat.id, "❌ **Неверный формат числа!** Пожалуйста, введите корректную сумму подработки:")
+        msg = bot.send_message(message.chat.id, "❌ **Неверный формат числа!** Введите сумму подработки:")
         bot.register_next_step_handler(msg, process_side)
         return
 
@@ -268,7 +274,7 @@ def process_side(message):
         report = (
             f"🚀 **РАСЧЕТ ПОДРАБОТКИ ({e2:,.0f} ₽)**\n"
             f"⚡ Уровень дохода: `{level_name}`\n\n"
-            f"🗂 **В твои конверты (Шаг 10 ₽):**\n"
+            f"🗂 **В твои конверты:**\n"
             f"🛍 Конверт «Карман»: **{r_pocket:,.0f} ₽**\n"
         )
         if r_drive > 0: report += f"🏎 Конверт «Драйв»: **{r_drive:,.0f} ₽**\n"
@@ -303,8 +309,8 @@ def show_monthly_report(message):
                 
                 net_personal_sum = (
                     float(parts[4]) + float(parts[5]) + float(parts[6]) + 
-                    float(parts[7]) + float(parts[8]) + float(parts[9]) + 
-                    float(parts[10]) + float(parts[11]) + float(parts[13])
+                    float(parts[8]) + float(parts[9]) + float(parts[10]) + 
+                    float(parts[11]) + float(parts[13]) + float(parts[7])
                 )
                 if parts[0] == prev_month: total_prev += net_personal_sum
                 if parts[0] == current_month:
@@ -323,8 +329,9 @@ def show_monthly_report(message):
         f"└ ⏪ Твоя чистая доля в `{prev_month}`: **{total_prev:,.2f} ₽**"
     )
     bot.send_message(message.chat.id, msg, parse_mode='Markdown')
+
 # =====================================================================
-# ИДЕМПОТЕНТНЫЙ CALLBACK ОБРАБОТЧИК (ПОРЯДОК СИНХРОНИЗИРОВАН)
+# CALLBACK ОБРАБОТЧИК (ИСПРАВЛЕНО: Распаковка полностью консистентна)
 # =====================================================================
 @bot.callback_query_handler(func=lambda call: True)
 def callback_inline(call):
@@ -334,15 +341,14 @@ def callback_inline(call):
             if call.data in processed_callbacks:
                 bot.answer_callback_query(call.id, "Эта транзакция уже записана!")
                 return
-            processed_callbacks.add(call.data)
-            if len(processed_callbacks) > 200: processed_callbacks.clear()
+            processed_callbacks.append(call.data)
 
         parts = call.data.split("_")
         action = parts[0]   
         amount = float(parts[1])  
 
         if action == "sm":
-            mode_name, r_pocket, r_drive, r_school, r_holidays, r_health, r_auto, r_monuments, r_clothes, wife_cash, c7, r_cushion = calculate_cash_distribution(amount)
+            _, r_pocket, r_drive, r_school, r_holidays, r_health, r_auto, r_monuments, r_clothes, wife_cash, c7, r_cushion = calculate_cash_distribution(amount)
             save_to_stats(income_type="основной", total=amount, pocket=r_pocket, drive=r_drive, school=r_school, holidays=r_holidays, health=r_health, auto=r_auto, monuments=r_monuments, clothes=r_clothes, cushion=r_cushion)
             bot.answer_callback_query(call.id, "Доход успешно зафиксирован!")
             
@@ -355,8 +361,9 @@ def callback_inline(call):
             except ApiException: pass 
             
         elif action == "ss":
+            # ИСПРАВЛЕНО: Полная синхронизация порядка переменных (r_auto на 6-м месте, r_clothes на 7-м)
             level_name, r_pocket, r_drive, r_school, r_holidays, r_auto, r_clothes = calculate_side_distribution(amount)
-            save_to_stats(income_type="подработка", total=amount, pocket=r_pocket, drive=r_drive, school=r_school, holidays=r_holidays, auto=r_auto, clothes=r_clothes)
+            save_to_stats(income_type="подработка", total=amount, pocket=r_pocket, drive=r_drive, school=r_school, holidays=r_holidays, auto=r_auto, clothes=r_clothes, cushion=0.0, health=0.0, monuments=0.0)
             bot.answer_callback_query(call.id, "Запись обновлена!")
             
             new_text = (
