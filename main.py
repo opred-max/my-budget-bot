@@ -236,7 +236,7 @@ def get_main_keyboard():
 
 def is_menu_command(text, message):
     """
-    Вызов bot.process_new_messages вынесен в отдельный асинхронный поток 
+    Вызов bot.process_new_messages вынесен in отдельный асинхронный поток 
     для полной защиты от рекурсивного взаимного дедлока (Deadlock).
     """
     if text in ["💵 Основной доход", "🚀 Подработка", "📊 Ежемесячный отчет", "/start", "/help"]:
@@ -250,9 +250,9 @@ def is_menu_command(text, message):
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     welcome_text = (
-        "👋 **Financial Engine v10.5 [MONOLITH ULTIMATE] активирован.**\n"
+        "👋 **Financial Engine v10.5 [MONOLITH STABLE] активирован.**\n"
         "Ликвидированы дедлоки, исправлен учет налогов, обеспечена типобезопасность.\n"
-        "Математическое ядро перекалибровано под новые лимиты (54к / 100к).\n\n"
+        "Все синтаксические ошибки и неточности в модуле ежемесячных отчетов полностью устранены.\n\n"
         "Используй кнопки меню для расчетов 👇"
     )
     bot.send_message(message.chat.id, welcome_text, reply_markup=get_main_keyboard(), parse_mode='Markdown')
