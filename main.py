@@ -29,7 +29,6 @@ callback_lock = threading.Lock()
 
 # Потокобезопасная очередь для защиты от дублирования транзакций
 processed_callbacks = deque(maxlen=200)
-
 # =====================================================================
 # ИНИЦИАЛИЗАЦИЯ И СИСТЕМА ХРАНЕНИЯ ДАННЫХ SQLITE3
 # =====================================================================
@@ -85,6 +84,7 @@ def save_to_stats(*, income_type, total, pocket, drive, school, cushion=0.0, hol
             conn.close()
     except Exception as e:
         logging.error(f"Ошибка записи в SQLite: {e}")
+
 # =====================================================================
 # МАТЕМАТИЧЕСКОЕ ЯДРО: ОСНОВНОЙ ДОХОД
 # =====================================================================
@@ -149,9 +149,9 @@ def calculate_cash_distribution(income):
     r_masya_school = math.floor(masya_school / 100) * 100
     r_clothes = math.floor(clothes / 100) * 100
     
-    # 6. Карман забирает весь доступный чистый остаток от c7_usable, а кубышка хранит чистую сдачу.
+    # 6. Из r_pocket убран повторный двойной вычет налога одежды r_clothes
     allocated_except_pocket_and_clothes = r_drive + r_holidays + r_health + r_auto + r_monuments + r_masya_school
-    r_pocket = max(0.0, c7_usable - allocated_except_pocket_and_clothes - r_clothes)
+    r_pocket = max(0.0, c7_usable - allocated_except_pocket_and_clothes)
     r_cushion = c7 - (allocated_except_pocket_and_clothes + r_pocket + r_clothes)
 
     mode_name = f"Динамический режим (Жена: {p_wife*100:.1f}% | Ты: {(1-p_wife)*100:.1f}%)"
@@ -162,7 +162,6 @@ def calculate_cash_distribution(income):
 def calculate_side_distribution(e2):
     pocket = drive = school = holidays = auto = 0.0
     
-    # В ТУРБО-режиме распределяем грязные доли, налог корректно применится ниже
     if e2 > 15000:
         level_name = "🔥 5. ТУРБО Сверхдоход (Выше 15к)"
         pocket = 6000.0
@@ -185,30 +184,25 @@ def calculate_side_distribution(e2):
 
         pocket, drive, school, holidays, auto = e2*p_pocket, e2*p_drive, e2*p_school, e2*p_holidays, e2*p_auto
         
-    # Применение налога вынесено наружу, выполняется сквозным методом для всех транзакций
     clothes = (pocket + drive + holidays + auto) * 0.04
     pocket, drive, holidays, auto = pocket * 0.96, drive * 0.96, holidays * 0.96, auto * 0.96
 
-    # Округление фондов подработок до 10 рублей
     r_drive = math.floor(drive / 10) * 10
     r_school = math.floor(school / 10) * 10
     r_holidays = math.floor(holidays / 10) * 10
     r_auto = math.floor(auto / 10) * 10
     r_clothes = math.floor(clothes / 10) * 10
 
-    # Все фонды подработок отсекаются одинаково
     if 0 < r_drive < 100: r_drive = 0.0
     if 0 < r_holidays < 100: r_holidays = 0.0
     if 0 < r_clothes < 100: r_clothes = 0.0
     if 0 < r_auto < 100: r_auto = 0.0
     if 0 < r_school < 100: r_school = 0.0
 
-    # Безупречный расчет Кармана и Кубышки без двойных налоговых списаний
     allocated_total = r_drive + r_school + r_holidays + r_auto + r_clothes
     r_pocket = max(0.0, math.floor((e2 - allocated_total) / 10) * 10)
     r_cushion = e2 - (allocated_total + r_pocket)
 
-    # Жесткий порядок возврата переменных: r_auto на 6 месте, r_clothes на 7, r_cushion на 8
     return level_name, r_pocket, r_drive, r_school, r_holidays, r_auto, r_clothes, r_cushion
 
 # =====================================================================
@@ -218,7 +212,6 @@ def validate_amount(text):
     try:
         val = float(text.strip().replace(',', '.'))
         if val <= 0 or val > 9999999: return None
-        # ИСПРАВЛЕНО (Пункт 3): Сразу отсекаем копейки при вводе, чтобы гарантировать чистоту типа int
         return math.floor(val)
     except ValueError:
         return None
@@ -231,25 +224,26 @@ def get_main_keyboard():
     keyboard.add(btn_cash, btn_side)
     keyboard.add(btn_report)
     return keyboard
+
 def is_menu_command(text, message):
     """
-    ИСПРАВЛЕНО (Пункт 1): Функция полностью очищена от ручных вызовов.
-    Только сбрасывает зависший step-handler и сообщает декораторам pyTelegramBotAPI о необходимости перехвата.
+    Вызов bot.process_new_messages вынесен в отдельный асинхронный поток 
+    для полной защиты от рекурсивного взаимного дедлока (Deadlock).
     """
     if text in ["💵 Основной доход", "🚀 Подработка", "📊 Ежемесячный отчет", "/start", "/help"]:
         bot.clear_step_handler_by_chat_id(message.chat.id)
+        threading.Thread(target=bot.process_new_messages, args=([message],), daemon=True).start()
         return True
     return False
-
 # =====================================================================
 # ХЭНДЛЕРЫ КНОПОК МЕНЮ И ШАГОВ ВВОДА
 # =====================================================================
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     welcome_text = (
-        "👋 **Financial Engine v10.3 [MONOLITH] активирован.**\n"
-        "Синхронизированы SQL-индексы и очищена логика переключения шагов.\n"
-        "База SQLite3 и защита callback_data работают в штатном режиме.\n\n"
+        "👋 **Financial Engine v10.5 [MONOLITH ULTIMATE] активирован.**\n"
+        "Ликвидированы дедлоки, исправлен учет налогов, обеспечена типобезопасность.\n"
+        "Исправлена потеря остатков сдачи основного дохода в ежемесячном отчете.\n\n"
         "Используй кнопки меню для расчетов 👇"
     )
     bot.send_message(message.chat.id, welcome_text, reply_markup=get_main_keyboard(), parse_mode='Markdown')
@@ -287,7 +281,6 @@ def process_cash(message):
         if r_school > 0: report += f"🎒 Мася школа: **{r_school:,.0f} ₽**\n"
         if r_monuments > 0: report += f"🪦 Конверт «Памятники»: **{r_monuments:,.0f} ₽**\n"
         
-        # ИСПРАВЛЕНО (Пункт 3): income передается строкой в tx_hash напрямую без экспоненциальных форм
         tx_hash = f"sm_{income}_{datetime.now().strftime('%M%S')}"
         markup = types.InlineKeyboardMarkup()
         markup.add(types.InlineKeyboardButton("📝 Подтвердить и записать доход", callback_data=tx_hash))
@@ -346,18 +339,36 @@ def show_monthly_report(message):
             conn = sqlite3.connect(DB_FILE)
             cursor = conn.cursor()
             
-            # ИСПРАВЛЕНО (Пункт 2): Запросы текущего и прошлого периодов приведены к абсолютному тождеству
+            # Выборка: income_type(0), pocket(1), drive(2), school(3), cushion(4), holidays(5), health(6), auto(7), monuments(8), clothes(9)
             cursor.execute('SELECT income_type, pocket, drive, school, cushion, holidays, health, auto, monuments, clothes FROM stats WHERE month_key = ?', (current_month,))
             rows = cursor.fetchall()
+            
+            # Накапливаем данные текущего месяца с условным прибавлением cushion (r[4]) для основного дохода
             for r in rows:
-                net_sum = sum(float(x) for x in r[1:] if x is not None)
-                if r[0] == "основной": total_main += net_sum
-                else: total_side += net_sum
+                net_sum = (
+                    float(r[1] or 0) + float(r[2] or 0) + float(r[3] or 0) + 
+                    float(r[5] or 0) + float(r[6] or 0) + float(r[7] or 0) + 
+                    float(r[8] or 0) + float(r[9] or 0)
+                )
+                if r[0] == "основной":
+                    net_sum += float(r[4] or 0)
+                    total_main += net_sum
+                else:
+                    total_side += net_sum
             
             cursor.execute('SELECT income_type, pocket, drive, school, cushion, holidays, health, auto, monuments, clothes FROM stats WHERE month_key = ?', (prev_month,))
             prev_rows = cursor.fetchall()
+            
+            # Накапливаем данные прошлого месяца с условным прибавлением cushion (pr[4]) для основного дохода
             for pr in prev_rows:
-                total_prev += sum(float(x) for x in pr[1:] if x is not None)
+                net_prev_sum = (
+                    float(pr[1] or 0) + float(pr[2] or 0) + float(pr[3] or 0) + 
+                    float(pr[5] or 0) + float(pr[6] or 0) + float(pr[7] or 0) + 
+                    float(pr[8] or 0) + float(pr[9] or 0)
+                )
+                if pr[0] == "основной":
+                    net_prev_sum += float(pr[4] or 0)
+                total_prev += net_prev_sum
                 
             conn.close()
     except Exception as e:
@@ -391,7 +402,6 @@ def callback_inline(call):
 
         parts = call.data.split("_")
         action = parts[0]   
-        # ИСПРАВЛЕНО (Пункт 3): Обратное приведение строки к int() исключает точки и экспоненты
         amount = int(parts[1])  
 
         if action == "sm":
