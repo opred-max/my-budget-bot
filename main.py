@@ -27,7 +27,7 @@ DB_FILE = "finance.db"
 db_lock = threading.Lock()
 callback_lock = threading.Lock()
 
-# Потокобезопасная очередь для защиты от дублирования транзакций
+# Потокобезопасная queue для защиты от дублирования транзакций
 processed_callbacks = deque(maxlen=200)
 # =====================================================================
 # ИНИЦИАЛИЗАЦИЯ И СИСТЕМА ХРАНЕНИЯ ДАННЫХ SQLITE3
@@ -171,46 +171,57 @@ def calculate_cash_distribution(income):
 def calculate_side_distribution(e2):
     pocket = drive = school = holidays = auto = 0.0
     
-    if e2 > 15000:
-        level_name = "🔥 5. ТУРБО Сверхдоход (Выше 15к)"
-        pocket = 6000.0
-        leftover = e2 - 6000.0
-        drive, school, holidays, auto = leftover * 0.10, leftover * 0.10, leftover * 0.05, leftover * 0.10
-        pocket += leftover * 0.65 
+    # 1. Сквозной вычет налога 4% на одежду в самом начале
+    clothes = e2 * 0.04
+    e2_usable = e2 - clothes
+
+    # 2. Калибровочные диапазоны на основе чистой пригодной суммы e2_usable
+    if e2_usable <= 2000.0:
+        level_name = "🌱 1. Микро (до 2к)"
+        pocket = e2_usable * 0.80
+        drive = e2_usable * 0.20
+    elif e2_usable <= 7500.0:
+        level_name = "📈 2. Стандарт (2к - 7.5к)"
+        pocket = e2_usable * 0.65
+        drive = e2_usable * 0.15
+        school = e2_usable * 0.10
+        auto = e2_usable * 0.10
+    elif e2_usable <= 12000.0:
+        level_name = "🚀 3. Профи (7.5к - 12к)"
+        pocket = e2_usable * 0.60
+        drive = e2_usable * 0.15
+        school = e2_usable * 0.10
+        auto = e2_usable * 0.10
+        holidays = e2_usable * 0.05
     else:
-        if e2 <= 2000: 
-            level_name = "🌱 1. Микро (до 2к)"
-            p_pocket, p_drive, p_school, p_holidays, p_auto = 0.66, 0.10, 0.10, 0.00, 0.08
-        elif e2 <= 5000: 
-            level_name = "📈 2. Стандарт (2к - 5к)"
-            p_pocket, p_drive, p_school, p_holidays, p_auto = 0.62, 0.15, 0.10, 0.05, 0.08
-        elif e2 <= 10000: 
-            level_name = "🚀 3. Профи (5к - 10к)"
-            p_pocket, p_drive, p_school, p_holidays, p_auto = 0.60, 0.15, 0.10, 0.07, 0.08
-        else: 
-            level_name = "⚡ 4. Мега Профи (10к - 15к)"
-            p_pocket, p_drive, p_school, p_holidays, p_auto = 0.59, 0.15, 0.12, 0.06, 0.08
+        level_name = "🔥 4. ТУРБО Сверхдоход (Выше 12к)"
+        pocket = 7000.0
+        leftover = e2_usable - 7000.0
+        pocket += leftover * 0.60
+        drive = leftover * 0.15
+        school = leftover * 0.10
+        auto = leftover * 0.10
+        holidays = leftover * 0.05
 
-        pocket, drive, school, holidays, auto = e2*p_pocket, e2*p_drive, e2*p_school, e2*p_holidays, e2*p_auto
-        
-    clothes = (pocket + drive + holidays + auto) * 0.04
-    pocket, drive, holidays, auto = pocket * 0.96, drive * 0.96, holidays * 0.96, auto * 0.96
-
+    # 3. Система округлений и балансировки сдач
+    # Округление расчетных долей строго вниз (math.floor) до 10 рублей
     r_drive = math.floor(drive / 10) * 10
     r_school = math.floor(school / 10) * 10
     r_holidays = math.floor(holidays / 10) * 10
     r_auto = math.floor(auto / 10) * 10
     r_clothes = math.floor(clothes / 10) * 10
 
-    if 0 < r_drive < 100: r_drive = 0.0
-    if 0 < r_holidays < 100: r_holidays = 0.0
-    if 0 < r_clothes < 100: r_clothes = 0.0
-    if 0 < r_auto < 100: r_auto = 0.0
-    if 0 < r_school < 100: r_school = 0.0
+    # Жесткое отсечение микро-копеек (если строго меньше 100 рублей)
+    if r_drive < 100.0: r_drive = 0.0
+    if r_school < 100.0: r_school = 0.0
+    if r_holidays < 100.0: r_holidays = 0.0
+    if r_auto < 100.0: r_auto = 0.0
 
-    allocated_total = r_drive + r_school + r_holidays + r_auto + r_clothes
-    r_pocket = max(0.0, math.floor((e2 - allocated_total) / 10) * 10)
-    r_cushion = e2 - (allocated_total + r_pocket)
+    # Карман (r_pocket) — точный чистый остаток от грязной e2 без дробления копеек
+    r_pocket = max(0.0, e2 - (r_drive + r_school + r_holidays + r_auto + r_clothes))
+    
+    # Техническая Кубышка всегда пуста, так как все копейки аккумулируются в Кармане
+    r_cushion = 0.0
 
     return level_name, r_pocket, r_drive, r_school, r_holidays, r_auto, r_clothes, r_cushion
 
@@ -236,7 +247,7 @@ def get_main_keyboard():
 
 def is_menu_command(text, message):
     """
-    Вызов bot.process_new_messages вынесен in отдельный асинхронный поток 
+    Вызов bot.process_new_messages вынесен в отдельный асинхронный поток 
     для полной защиты от рекурсивного взаимного дедлока (Deadlock).
     """
     if text in ["💵 Основной доход", "🚀 Подработка", "📊 Ежемесячный отчет", "/start", "/help"]:
@@ -250,9 +261,9 @@ def is_menu_command(text, message):
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     welcome_text = (
-        "👋 **Financial Engine v10.5 [MONOLITH STABLE] активирован.**\n"
+        "👋 **Financial Engine v10.6 [MONOLITH CALIBRATED] активирован.**\n"
         "Ликвидированы дедлоки, исправлен учет налогов, обеспечена типобезопасность.\n"
-        "Все синтаксические ошибки и неточности в модуле ежемесячных отчетов полностью устранены.\n\n"
+        "Ядро подработок переписано: сквозной налог 4% и бесшовная балансировка Кармана внедрены.\n\n"
         "Используй кнопки меню для расчетов 👇"
     )
     bot.send_message(message.chat.id, welcome_text, reply_markup=get_main_keyboard(), parse_mode='Markdown')
@@ -352,7 +363,7 @@ def show_monthly_report(message):
             cursor.execute('SELECT income_type, pocket, drive, school, cushion, holidays, health, auto, monuments, clothes FROM stats WHERE month_key = ?', (current_month,))
             rows = cursor.fetchall()
             
-            # Накапливаем данные текущего месяца с условным прибавлением cushion (r[4]) для основного дохода
+            # Накапливаем данные текущего месяца с условным прибавлением cushion (r) для основного дохода
             for r in rows:
                 net_sum = (
                     float(r[1] or 0) + float(r[2] or 0) + float(r[3] or 0) + 
@@ -368,7 +379,7 @@ def show_monthly_report(message):
             cursor.execute('SELECT income_type, pocket, drive, school, cushion, holidays, health, auto, monuments, clothes FROM stats WHERE month_key = ?', (prev_month,))
             prev_rows = cursor.fetchall()
             
-            # Накапливаем данные прошлого месяца с условным прибавлением cushion (pr[4]) для основного дохода
+            # Накапливаем данные прошлого месяца с условным прибавлением cushion (pr) для основного дохода
             for pr in prev_rows:
                 net_prev_sum = (
                     float(pr[1] or 0) + float(pr[2] or 0) + float(pr[3] or 0) + 
@@ -392,7 +403,7 @@ def show_monthly_report(message):
         f"└ 🚀 Из подработок: {total_side:,.2f} ₽\n\n"
         f"═══════════════════════════\n"
         f"📅 **СРАВНЕНИЕ:**\n"
-        f"└ ⏪ Твоя чистая доля в `{prev_month}`: **{total_prev:,.2f} ₽**"
+        f"└ ⏪ Твоя чистая доля in `{prev_month}`: **{total_prev:,.2f} ₽**"
     )
     bot.send_message(message.chat.id, msg, parse_mode='Markdown')
 
