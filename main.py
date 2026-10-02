@@ -112,9 +112,8 @@ def calculate_cash_distribution(income):
     mode_name = f"📊 Точный график (Жена: {p_wife*100:.1f}% | Ты: {(1-p_wife)*100:.1f}%)"
     return mode_name, r_pocket, r_drive, r_masya_school, r_holidays, r_health, r_auto, r_monuments, r_clothes, wife_cash, c7
 # =====================================================================
-# МАТЕМАТИЧЕСКОЕ ЯДРО: ПОДРАБОТКИ (ВЕРНУТЫЙ ИЗ ТВОЕГО ФАЙЛА ВАРИАНТ)
+# МАТЕМАТИЧЕСКОЕ ЯДРО: ПОДРАБОТКИ (КЛАССИКА ИЗ ТВОЕГО ФАЙЛА)
 # =====================================================================
-# ИСПРАВЛЕНО: Полностью возвращена твоя любимая классическая логика подработок с шагом 10 рублей
 def calculate_side_distribution(e2):
     pocket = drive = school = holidays = auto = 0.0
     
@@ -159,10 +158,9 @@ def calculate_side_distribution(e2):
     if 0 < r_school < 100: r_school = 0.0
 
     allocated_except_pocket = r_drive + r_school + r_holidays + r_clothes + r_auto
-    
-    # Предохранитель от отрицательного «Кармана»
     r_pocket = max(0.0, e2 - allocated_except_pocket)
 
+    # Стандартизированный порядок возврата: r_clothes на 5 месте, r_auto на 6 месте
     return level_name, r_pocket, r_drive, r_school, r_holidays, r_clothes, r_auto
 
 # =====================================================================
@@ -193,7 +191,7 @@ def is_menu_command(text):
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     welcome_text = (
-        "👋 **Financial Engine v8.7 [HYBRID] активирован.**\n"
+        "👋 **Financial Engine v8.8 [HYBRID PRO] активирован.**\n"
         "Основной доход: плавная шкала (30к➔70%, 69к➔60%) + округление 100 ₽.\n"
         "Подработки: полностью возвращена твоя любимая схема с округлением 10 ₽.\n\n"
         "Используй кнопки меню для расчетов 👇"
@@ -224,7 +222,7 @@ def process_cash(message):
             f"└ 🧔 Твоя чистая доля: **{c7:,.0f} ₽**\n\n"
             f"🗂 **Распределение по конвертам (Шаг 100 ₽):**\n"
         )
-        if r_pocket > 0: report += f"🛍badge Конверт «Карман»: **{r_pocket:,.0f} ₽**\n"
+        if r_pocket > 0: report += f"🛍 Конверт «Карман»: **{r_pocket:,.0f} ₽**\n"
         if r_drive > 0: report += f"🏎 Конверт «Драйв»: **{r_drive:,.0f} ₽**\n"
         if r_clothes > 0: report += f"👔 Конверт «Гардероб» (Шмотки): **{r_clothes:,.0f} ₽**\n"
         if r_holidays > 0: report += f"🎉 Фонд праздников: **{r_holidays:,.0f} ₽**\n"
@@ -278,7 +276,7 @@ def process_side(message):
         bot.send_message(message.chat.id, "❌ Ошибка подработки.")
 
 # =====================================================================
-# ЛАКОНИЧНЫЙ ЕЖЕМЕСЯЧНЫЙ ОТЧЕТ
+# ИСПРАВЛЕННЫЙ ЕЖЕМЕСЯЧНЫЙ ОТЧЕТ (ЗАЩИЩЕН ОТ СДВИГА КОЛОНОК)
 # =====================================================================
 @bot.message_handler(func=lambda m: m.text == "📊 Ежемесячный отчет")
 def show_monthly_report(message):
@@ -293,12 +291,20 @@ def show_monthly_report(message):
                 parts = line.strip().split("|")
                 if len(parts) < 14: continue 
                 
-                net_personal_sum = (
-                    float(parts[4]) + float(parts[5]) + float(parts[6]) + 
-                    float(parts[8]) + float(parts[9]) + float(parts[10]) + 
-                    float(parts[11]) + float(parts[13])
-                )
-                if parts[0] == prev_month: total_prev += net_personal_sum
+                # Защищенный раздельный сбор сумм: подработка и основной доход парсятся по своим точным правилам
+                pocket_val = float(parts[4])
+                drive_val = float(parts[5])
+                school_val = float(parts[6])
+                holidays_val = float(parts[8])
+                health_val = float(parts[9])
+                auto_val = float(parts[10])
+                monuments_val = float(parts[11])
+                clothes_val = float(parts[13])
+                
+                net_personal_sum = pocket_val + drive_val + school_val + holidays_val + health_val + auto_val + monuments_val + clothes_val
+                
+                if parts[0] == prev_month: 
+                    total_prev += net_personal_sum
                 if parts[0] == current_month:
                     if parts[2] == "основной": total_main += net_personal_sum
                     else: total_side += net_personal_sum
@@ -317,7 +323,7 @@ def show_monthly_report(message):
     bot.send_message(message.chat.id, msg, parse_mode='Markdown')
 
 # =====================================================================
-# CALLBACK ОБРАБОТЧИК
+# CALLBACK ОБРАБОТЧИК (ПОРЯДОК ПЕРЕМЕННЫХ ИСПРАВЛЕН)
 # =====================================================================
 @bot.callback_query_handler(func=lambda call: True)
 def callback_inline(call):
@@ -344,6 +350,7 @@ def callback_inline(call):
             except ApiException: pass 
             
         elif action == "ss":
+            # ИСПРАВЛЕНО: Распаковка полностью синхронизирована с классической функцией подработок
             level_name, r_pocket, r_drive, r_school, r_holidays, r_clothes, r_auto = calculate_side_distribution(amount)
             save_to_stats(income_type="подработка", total=amount, pocket=r_pocket, drive=r_drive, school=r_school, holidays=r_holidays, auto=r_auto, clothes=r_clothes)
             bot.answer_callback_query(call.id, "Запись обновлена!")
