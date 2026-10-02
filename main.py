@@ -124,9 +124,9 @@ def calculate_cash_distribution(income):
     r_cushion = c7 - (allocated_except_pocket_and_clothes + r_pocket + r_clothes)
 
     mode_name = f"Динамический режим (Жена: {p_wife*100:.1f}% | Ты: {(1-p_wife)*100:.1f}%)"
-    return mode_name, r_pocket, r_drive, r_masya_school, r_holidays, r_health, r_auto, r_monuments, r_clothes, wife_cash, c7, r_cushion
+    return mode_name, r_pocket, r_drive, r_school, r_holidays, r_health, r_auto, r_monuments, r_clothes, wife_cash, c7, r_cushion
 # =====================================================================
-# МАТЕМАТИЧЕСКОЕ ЯДРО: ПОДРАБОТКИ
+# МАТЕМАТИЧЕСКОЕ ЯДРО: ПОДРАБОТКИ (ИСПРАВЛЕНЫ ПОГРЕШНОСТИ ОКРУГЛЕНИЯ)
 # =====================================================================
 def calculate_side_distribution(e2):
     pocket = drive = school = holidays = auto = 0.0
@@ -170,11 +170,15 @@ def calculate_side_distribution(e2):
     if 0 < r_auto < 100: r_auto = 0.0
     if 0 < r_school < 100: r_school = 0.0
 
-    allocated_except_pocket = r_drive + r_school + r_holidays + r_auto + r_clothes
-    r_pocket = max(0.0, e2 - allocated_except_pocket)
+    allocated_except_pocket_and_clothes = r_drive + r_school + r_holidays + r_auto
+    
+    # ИСПРАВЛЕНО (Улучшение ИИ): Карман теперь тоже округляется кратно 10 рублям
+    r_pocket = max(0.0, math.floor((e2 - allocated_except_pocket_and_clothes - r_clothes) / 10) * 10)
+    
+    # Сдача от округлений подработок теперь явно выносится в r_cushion для сохранения копеек
+    r_cushion = e2 - (allocated_except_pocket_and_clothes + r_pocket + r_clothes)
 
-    # Жесткий порядок возврата переменных: r_auto на 6 месте, r_clothes на 7.
-    return level_name, r_pocket, r_drive, r_school, r_holidays, r_auto, r_clothes
+    return level_name, r_pocket, r_drive, r_school, r_holidays, r_auto, r_clothes, r_cushion
 
 # =====================================================================
 # ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ И ИНТЕРФЕЙС
@@ -207,9 +211,9 @@ def is_menu_command(text, chat_id):
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     welcome_text = (
-        "👋 **Financial Engine v9.3 [STABLE PRO] активирован.**\n"
-        "Синхронизирован порядок распаковки подработок в хэндлере и callback.\n"
-        "Данные Автофонда и Гардероба больше не будут путаться в логах базы.\n\n"
+        "👋 **Financial Engine v9.5 [PREMIUM PROTECTION] активирован.**\n"
+        "Внедрен потокобезопасный считыватель отчетов with file_lock.\n"
+        "Для подработок реализован честный сбор остатков копеек в Кубышку.\n\n"
         "Используй кнопки меню для расчетов 👇"
     )
     bot.send_message(message.chat.id, welcome_text, reply_markup=get_main_keyboard(), parse_mode='Markdown')
@@ -269,7 +273,7 @@ def process_side(message):
         return
 
     try:
-        level_name, r_pocket, r_drive, r_school, r_holidays, r_auto, r_clothes = calculate_side_distribution(e2)
+        level_name, r_pocket, r_drive, r_school, r_holidays, r_auto, r_clothes, r_cushion = calculate_side_distribution(e2)
 
         report = (
             f"🚀 **РАСЧЕТ ПОДРАБОТКИ ({e2:,.0f} ₽)**\n"
@@ -290,9 +294,8 @@ def process_side(message):
     except Exception as e:
         logging.error(f"Ошибка подработки: {e}")
         bot.send_message(message.chat.id, "❌ Ошибка подработки.")
-
 # =====================================================================
-# ЛАКОНИЧНЫЙ ЕЖЕМЕСЯЧНЫЙ ОТЧЕТ
+# ИСПРАВЛЕННЫЙ ЕЖЕМЕСЯЧНЫЙ ОТЧЕТ (ПОТОКОБЕЗОПАСНЫЙ С WITH FILE_LOCK)
 # =====================================================================
 @bot.message_handler(func=lambda m: m.text == "📊 Ежемесячный отчет")
 def show_monthly_report(message):
@@ -302,20 +305,21 @@ def show_monthly_report(message):
     total_main = total_side = total_prev = 0.0
     
     if os.path.exists(STATS_FILE):
-        with open(STATS_FILE, "r", encoding="utf-8") as f:
-            for line in f:
-                parts = line.strip().split("|")
-                if len(parts) < 14: continue 
-                
-                net_personal_sum = (
-                    float(parts[4]) + float(parts[5]) + float(parts[6]) + 
-                    float(parts[8]) + float(parts[9]) + float(parts[10]) + 
-                    float(parts[11]) + float(parts[13]) + float(parts[7])
-                )
-                if parts[0] == prev_month: total_prev += net_personal_sum
-                if parts[0] == current_month:
-                    if parts[2] == "основной": total_main += net_personal_sum
-                    else: total_side += net_personal_sum
+        with file_lock:
+            with open(STATS_FILE, "r", encoding="utf-8") as f:
+                for line in f:
+                    parts = line.strip().split("|")
+                    if len(parts) < 14: continue 
+                    
+                    net_personal_sum = (
+                        float(parts[4]) + float(parts[5]) + float(parts[6]) + 
+                        float(parts[7]) + float(parts[8]) + float(parts[9]) + 
+                        float(parts[10]) + float(parts[11]) + float(parts[13])
+                    )
+                    if parts[0] == prev_month: total_prev += net_personal_sum
+                    if parts[0] == current_month:
+                        if parts[2] == "основной": total_main += net_personal_sum
+                        else: total_side += net_personal_sum
                         
     total_earned = total_main + total_side
     msg = (
@@ -331,7 +335,7 @@ def show_monthly_report(message):
     bot.send_message(message.chat.id, msg, parse_mode='Markdown')
 
 # =====================================================================
-# CALLBACK ОБРАБОТЧИК (ИСПРАВЛЕНО: Распаковка полностью консистентна)
+# CALLBACK ОБРАБОТЧИК (ПОЛНОСТЬЮ СИНХРОНИЗИРОВАН)
 # =====================================================================
 @bot.callback_query_handler(func=lambda call: True)
 def callback_inline(call):
@@ -348,7 +352,7 @@ def callback_inline(call):
         amount = float(parts[1])  
 
         if action == "sm":
-            _, r_pocket, r_drive, r_school, r_holidays, r_health, r_auto, r_monuments, r_clothes, wife_cash, c7, r_cushion = calculate_cash_distribution(amount)
+            mode_name, r_pocket, r_drive, r_school, r_holidays, r_health, r_auto, r_monuments, r_clothes, wife_cash, c7, r_cushion = calculate_cash_distribution(amount)
             save_to_stats(income_type="основной", total=amount, pocket=r_pocket, drive=r_drive, school=r_school, holidays=r_holidays, health=r_health, auto=r_auto, monuments=r_monuments, clothes=r_clothes, cushion=r_cushion)
             bot.answer_callback_query(call.id, "Доход успешно зафиксирован!")
             
@@ -361,9 +365,8 @@ def callback_inline(call):
             except ApiException: pass 
             
         elif action == "ss":
-            # ИСПРАВЛЕНО: Полная синхронизация порядка переменных (r_auto на 6-м месте, r_clothes на 7-м)
-            level_name, r_pocket, r_drive, r_school, r_holidays, r_auto, r_clothes = calculate_side_distribution(amount)
-            save_to_stats(income_type="подработка", total=amount, pocket=r_pocket, drive=r_drive, school=r_school, holidays=r_holidays, auto=r_auto, clothes=r_clothes, cushion=0.0, health=0.0, monuments=0.0)
+            level_name, r_pocket, r_drive, r_school, r_holidays, r_auto, r_clothes, r_cushion = calculate_side_distribution(amount)
+            save_to_stats(income_type="подработка", total=amount, pocket=r_pocket, drive=r_drive, school=r_school, holidays=r_holidays, auto=r_auto, clothes=r_clothes, cushion=r_cushion, health=0.0, monuments=0.0)
             bot.answer_callback_query(call.id, "Запись обновлена!")
             
             new_text = (
