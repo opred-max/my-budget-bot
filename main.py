@@ -91,9 +91,12 @@ def save_to_stats(*, income_type, total, pocket, drive, school, cushion=0.0, hol
 def calculate_cash_distribution(income):
     pocket = drive = holidays = health = auto = monuments = masya_school = 0.0
     
-    # 1. Плавный график долей супругов через точки (30к -> 70%) и (69к -> 60%)
-    p_wife = 0.70 - (0.10 * (income - 30000.0) / 39000.0)
-    p_wife = max(0.48, min(0.73, p_wife))
+    # 1. График долей супругов: при доходе от 100к жестко 60%, иначе плавный расчет на интервале 30к-100к
+    if income >= 100000.0:
+        p_wife = 0.60
+    else:
+        p_wife = 0.70 - (0.10 * (income - 30000.0) / 70000.0)
+        p_wife = max(0.48, min(0.73, p_wife))
     
     wife_cash = math.ceil((income * p_wife) / 100) * 100
     c7 = income - wife_cash
@@ -111,8 +114,8 @@ def calculate_cash_distribution(income):
     p_holidays = 0.11 - (0.11 * factor)
     p_monuments = 0.05 - (0.05 * factor)
     
-    # Режим Выживания
-    if income <= 50000.0:
+    # Режим Выживания: новые калиброванные лимиты отключения накопительных фондов
+    if income <= 54000.0:
         p_drive = 0.0      
         p_holidays = 0.0   
 
@@ -132,13 +135,19 @@ def calculate_cash_distribution(income):
         pocket += monuments  
         monuments = 0.0
 
-    # 4. Применение жестких верхних лимитов
+    # 4. Применение жестких верхних лимитов (Снижение планки со 125к до 100к)
     if income > 75000 and monuments > 2000.0:
         pocket += (monuments - 2000.0); monuments = 2000.0
-    if income > 125000:
-        if holidays > 5500.0: pocket += (holidays - 5500.0); holidays = 5500.0
-        if auto > 5000.0: pocket += (auto - 5000.0); auto = 5000.0
-        if monuments > 2000.0: pocket += (monuments - 2000.0); monuments = 2000.0
+    if income > 100000.0:
+        if holidays > 5500.0: 
+            pocket += (holidays - 5500.0)
+            holidays = 5500.0
+        if auto > 5000.0: 
+            pocket += (auto - 5000.0)
+            auto = 5000.0
+        if monuments > 2000.0: 
+            pocket += (monuments - 2000.0)
+            monuments = 2000.0
 
     # 5. Округление целевых фондов строго вниз до 100 рублей
     r_drive = math.floor(drive / 100) * 100
@@ -149,9 +158,9 @@ def calculate_cash_distribution(income):
     r_masya_school = math.floor(masya_school / 100) * 100
     r_clothes = math.floor(clothes / 100) * 100
     
-    # 6. Из r_pocket убран повторный двойной вычет налога одежды r_clothes
+    # 6. Расчет округленного кармана на базе очищенной c7_usable без повторных вычетов одежды
     allocated_except_pocket_and_clothes = r_drive + r_holidays + r_health + r_auto + r_monuments + r_masya_school
-    r_pocket = max(0.0, c7_usable - allocated_except_pocket_and_clothes)
+    r_pocket = max(0.0, math.floor((c7_usable - allocated_except_pocket_and_clothes) / 100) * 100)
     r_cushion = c7 - (allocated_except_pocket_and_clothes + r_pocket + r_clothes)
 
     mode_name = f"Динамический режим (Жена: {p_wife*100:.1f}% | Ты: {(1-p_wife)*100:.1f}%)"
@@ -243,7 +252,7 @@ def send_welcome(message):
     welcome_text = (
         "👋 **Financial Engine v10.5 [MONOLITH ULTIMATE] активирован.**\n"
         "Ликвидированы дедлоки, исправлен учет налогов, обеспечена типобезопасность.\n"
-        "Исправлена потеря остатков сдачи основного дохода в ежемесячном отчете.\n\n"
+        "Математическое ядро перекалибровано под новые лимиты (54к / 100к).\n\n"
         "Используй кнопки меню для расчетов 👇"
     )
     bot.send_message(message.chat.id, welcome_text, reply_markup=get_main_keyboard(), parse_mode='Markdown')
