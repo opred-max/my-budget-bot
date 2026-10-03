@@ -171,9 +171,10 @@ def calculate_cash_distribution(income):
 def calculate_side_distribution(e2):
     pocket = drive = school = holidays = auto = 0.0
     
-    # 1. Сквозной вычет налога 4% на одежду в самом начале
-    clothes = e2 * 0.04
-    e2_usable = e2 - clothes
+    # 1. Сквозной налог на одежду с округлением до 10 рублей и очистка базы
+    clothes_raw = e2 * 0.04
+    clothes_calc = math.floor(clothes_raw / 10) * 10
+    e2_usable = e2 - clothes_calc
 
     # 2. Калибровочные диапазоны на основе чистой пригодной суммы e2_usable
     if e2_usable <= 2000.0:
@@ -203,25 +204,23 @@ def calculate_side_distribution(e2):
         auto = leftover * 0.10
         holidays = leftover * 0.05
 
-    # 3. Система округлений и балансировки сдач
-    # Округление расчетных долей строго вниз (math.floor) до 10 рублей
+    # 3. Система округлений строго вниз (math.floor) до 10 рублей
     r_drive = math.floor(drive / 10) * 10
     r_school = math.floor(school / 10) * 10
     r_holidays = math.floor(holidays / 10) * 10
     r_auto = math.floor(auto / 10) * 10
-    r_clothes = math.floor(clothes / 10) * 10
+    r_clothes = math.floor(clothes_calc / 10) * 10
 
-    # Жесткое отсечение микро-копеек (если строго меньше 100 рублей)
+    # ЖЕСТКИЙ ФИЛЬТР ОБНУЛЕНИЯ: если строго меньше 100 рублей
     if r_drive < 100.0: r_drive = 0.0
     if r_school < 100.0: r_school = 0.0
     if r_holidays < 100.0: r_holidays = 0.0
     if r_auto < 100.0: r_auto = 0.0
+    if r_clothes < 100.0: r_clothes = 0.0
 
-    # Карман (r_pocket) — точный чистый остаток от грязной e2 без дробления копеек
-    r_pocket = max(0.0, e2 - (r_drive + r_school + r_holidays + r_auto + r_clothes))
-    
-    # Техническая Кубышка всегда пуста, так как все копейки аккумулируются в Кармане
-    r_cushion = 0.0
+    # 4. Идеальный баланс Кармана и Кубышки
+    r_pocket = math.floor((e2 - (r_drive + r_school + r_holidays + r_auto + r_clothes)) / 10) * 10
+    r_cushion = e2 - (r_drive + r_school + r_holidays + r_auto + r_clothes + r_pocket)
 
     return level_name, r_pocket, r_drive, r_school, r_holidays, r_auto, r_clothes, r_cushion
 
@@ -246,10 +245,6 @@ def get_main_keyboard():
     return keyboard
 
 def is_menu_command(text, message):
-    """
-    Вызов bot.process_new_messages вынесен в отдельный асинхронный поток 
-    для полной защиты от рекурсивного взаимного дедлока (Deadlock).
-    """
     if text in ["💵 Основной доход", "🚀 Подработка", "📊 Ежемесячный отчет", "/start", "/help"]:
         bot.clear_step_handler_by_chat_id(message.chat.id)
         threading.Thread(target=bot.process_new_messages, args=([message],), daemon=True).start()
@@ -261,9 +256,9 @@ def is_menu_command(text, message):
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     welcome_text = (
-        "👋 **Financial Engine v10.6 [MONOLITH CALIBRATED] активирован.**\n"
+        "👋 **Financial Engine v10.6 [MONOLITH PRECISE] активирован.**\n"
         "Ликвидированы дедлоки, исправлен учет налогов, обеспечена типобезопасность.\n"
-        "Ядро подработок переписано: сквозной налог 4% и бесшовная балансировка Кармана внедрены.\n\n"
+        "Жёсткий лимит отсечения мелких фондов подработок (<100 ₽) теперь функционирует без сбоев.\n\n"
         "Используй кнопки меню для расчетов 👇"
     )
     bot.send_message(message.chat.id, welcome_text, reply_markup=get_main_keyboard(), parse_mode='Markdown')
@@ -396,14 +391,14 @@ def show_monthly_report(message):
 
     total_earned = total_main + total_side
     msg = (
-        f"📊 **ФИНАНСОВЫЙ ОТЧЕТ**\n📅 Период: `{current_month}`\n═══════════════════════════\n\n"
+        f"📊 **ФИНАНСОВЫЙ ОТЧЕТ**\n📅 Period: `{current_month}`\n═══════════════════════════\n\n"
         f"📈 **ДВИЖЕНИЕ ЧИСТОГО КАПИТАЛА:**\n"
         f"├ 💰 Личных средств зашло: **{total_earned:,.2f} ₽**\n"
         f"├ 💵 Основной доход: {total_main:,.2f} ₽\n"
         f"└ 🚀 Из подработок: {total_side:,.2f} ₽\n\n"
         f"═══════════════════════════\n"
         f"📅 **СРАВНЕНИЕ:**\n"
-        f"└ ⏪ Твоя чистая доля in `{prev_month}`: **{total_prev:,.2f} ₽**"
+        f"└ ⏪ Твоя чистая доля в `{prev_month}`: **{total_prev:,.2f} ₽**"
     )
     bot.send_message(message.chat.id, msg, parse_mode='Markdown')
 
