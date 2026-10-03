@@ -135,7 +135,7 @@ def calculate_cash_distribution(income):
         pocket += monuments  
         monuments = 0.0
 
-    # 4. Применение жестких верхних лимитов (Снижение планки со 125к до 100к)
+    # 4. Применение жестких upper-лимитов (Снижение планки со 125к до 100к)
     if income > 75000 and monuments > 2000.0:
         pocket += (monuments - 2000.0); monuments = 2000.0
     if income > 100000.0:
@@ -171,22 +171,25 @@ def calculate_cash_distribution(income):
 def calculate_side_distribution(e2):
     pocket = drive = school = holidays = auto = 0.0
     
-    # 1. Сквозной налог на одежду с округлением до 10 рублей и очистка базы
-    clothes_raw = e2 * 0.04
-    clothes_calc = math.floor(clothes_raw / 10) * 10
-    e2_usable = e2 - clothes_calc
+    # 1. Сквозной вычет налога 4% на одежду в самом начале и очистка базы
+    clothes = e2 * 0.04
+    e2_usable = e2 - clothes
 
-    # 2. Калибровочные диапазоны на основе чистой пригодной суммы e2_usable
+    # 2. Калибровочные диапазоны долей подработок от e2_usable
     if e2_usable <= 2000.0:
         level_name = "🌱 1. Микро (до 2к)"
-        pocket = e2_usable * 0.80
-        drive = e2_usable * 0.20
+        pocket = e2_usable * 0.66
+        drive = e2_usable * 0.10
+        school = e2_usable * 0.10
+        auto = e2_usable * 0.08
+        holidays = 0.0
     elif e2_usable <= 7500.0:
         level_name = "📈 2. Стандарт (2к - 7.5к)"
         pocket = e2_usable * 0.65
         drive = e2_usable * 0.15
         school = e2_usable * 0.10
         auto = e2_usable * 0.10
+        holidays = 0.0
     elif e2_usable <= 12000.0:
         level_name = "🚀 3. Профи (7.5к - 12к)"
         pocket = e2_usable * 0.60
@@ -204,23 +207,26 @@ def calculate_side_distribution(e2):
         auto = leftover * 0.10
         holidays = leftover * 0.05
 
-    # 3. Система округлений строго вниз (math.floor) до 10 рублей
-    r_drive = math.floor(drive / 10) * 10
-    r_school = math.floor(school / 10) * 10
-    r_holidays = math.floor(holidays / 10) * 10
-    r_auto = math.floor(auto / 10) * 10
-    r_clothes = math.floor(clothes_calc / 10) * 10
+    # 3. Реализация классического округления до 10 рублей и гибридного триггера
+    # Математическое округление до десятков
+    round_drive = round(drive, -1)
+    round_school = round(school, -1)
+    round_holidays = round(holidays, -1)
+    round_auto = round(auto, -1)
+    round_clothes = round(clothes, -1)
 
-    # ЖЕСТКИЙ ФИЛЬТР ОБНУЛЕНИЯ: если строго меньше 100 рублей
-    if r_drive < 100.0: r_drive = 0.0
-    if r_school < 100.0: r_school = 0.0
-    if r_holidays < 100.0: r_holidays = 0.0
-    if r_auto < 100.0: r_auto = 0.0
-    if r_clothes < 100.0: r_clothes = 0.0
+    # Применение триггера: > 50.0 -> 100.0 рублей, иначе -> 0.0 рублей
+    r_drive = 100.0 if round_drive > 50.0 else 0.0
+    r_school = 100.0 if round_school > 50.0 else 0.0
+    r_holidays = 100.0 if round_holidays > 50.0 else 0.0
+    r_auto = 100.0 if round_auto > 50.0 else 0.0
+    r_clothes = 100.0 if round_clothes > 50.0 else 0.0
 
-    # 4. Идеальный баланс Кармана и Кубышки
-    r_pocket = math.floor((e2 - (r_drive + r_school + r_holidays + r_auto + r_clothes)) / 10) * 10
-    r_cushion = e2 - (r_drive + r_school + r_holidays + r_auto + r_clothes + r_pocket)
+    # Карман забирает ВЕСЬ чистый остаток от исходной грязной суммы e2
+    r_pocket = max(0.0, e2 - (r_drive + r_school + r_holidays + r_auto + r_clothes))
+    
+    # Фиксация технической Кубышки
+    r_cushion = 0.0
 
     return level_name, r_pocket, r_drive, r_school, r_holidays, r_auto, r_clothes, r_cushion
 
@@ -256,9 +262,9 @@ def is_menu_command(text, message):
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     welcome_text = (
-        "👋 **Financial Engine v10.6 [MONOLITH PRECISE] активирован.**\n"
+        "👋 **Financial Engine v10.6 [MONOLITH CALIBRATED] активирован.**\n"
         "Ликвидированы дедлоки, исправлен учет налогов, обеспечена типобезопасность.\n"
-        "Жёсткий лимит отсечения мелких фондов подработок (<100 ₽) теперь функционирует без сбоев.\n\n"
+        "Ядро подработок переписано: классический round() и гибридный триггер 50 ₽ внедрены.\n\n"
         "Используй кнопки меню для расчетов 👇"
     )
     bot.send_message(message.chat.id, welcome_text, reply_markup=get_main_keyboard(), parse_mode='Markdown')
@@ -361,12 +367,12 @@ def show_monthly_report(message):
             # Накапливаем данные текущего месяца с условным прибавлением cushion (r) для основного дохода
             for r in rows:
                 net_sum = (
-                    float(r[1] or 0) + float(r[2] or 0) + float(r[3] or 0) + 
-                    float(r[5] or 0) + float(r[6] or 0) + float(r[7] or 0) + 
-                    float(r[8] or 0) + float(r[9] or 0)
+                    float(r or 0) + float(r or 0) + float(r or 0) + 
+                    float(r or 0) + float(r or 0) + float(r or 0) + 
+                    float(r or 0) + float(r or 0)
                 )
-                if r[0] == "основной":
-                    net_sum += float(r[4] or 0)
+                if r == "основной":
+                    net_sum += float(r or 0)
                     total_main += net_sum
                 else:
                     total_side += net_sum
@@ -377,12 +383,12 @@ def show_monthly_report(message):
             # Накапливаем данные прошлого месяца с условным прибавлением cushion (pr) для основного дохода
             for pr in prev_rows:
                 net_prev_sum = (
-                    float(pr[1] or 0) + float(pr[2] or 0) + float(pr[3] or 0) + 
-                    float(pr[5] or 0) + float(pr[6] or 0) + float(pr[7] or 0) + 
-                    float(pr[8] or 0) + float(pr[9] or 0)
+                    float(pr or 0) + float(pr or 0) + float(pr or 0) + 
+                    float(pr or 0) + float(pr or 0) + float(pr or 0) + 
+                    float(pr or 0) + float(pr or 0)
                 )
-                if pr[0] == "основной":
-                    net_prev_sum += float(pr[4] or 0)
+                if pr == "основной":
+                    net_prev_sum += float(pr or 0)
                 total_prev += net_prev_sum
                 
             conn.close()
@@ -391,14 +397,14 @@ def show_monthly_report(message):
 
     total_earned = total_main + total_side
     msg = (
-        f"📊 **ФИНАНСОВЫЙ ОТЧЕТ**\n📅 Period: `{current_month}`\n═══════════════════════════\n\n"
+        f"📊 **ФИНАНСОВЫЙ ОТЧЕТ**\n📅 Период: `{current_month}`\n═══════════════════════════\n\n"
         f"📈 **ДВИЖЕНИЕ ЧИСТОГО КАПИТАЛА:**\n"
         f"├ 💰 Личных средств зашло: **{total_earned:,.2f} ₽**\n"
         f"├ 💵 Основной доход: {total_main:,.2f} ₽\n"
         f"└ 🚀 Из подработок: {total_side:,.2f} ₽\n\n"
         f"═══════════════════════════\n"
         f"📅 **СРАВНЕНИЕ:**\n"
-        f"└ ⏪ Твоя чистая доля в `{prev_month}`: **{total_prev:,.2f} ₽**"
+        f"└ ⏪ Твоя чистая доля in `{prev_month}`: **{total_prev:,.2f} ₽**"
     )
     bot.send_message(message.chat.id, msg, parse_mode='Markdown')
 
@@ -416,8 +422,8 @@ def callback_inline(call):
             processed_callbacks.append(call.data)
 
         parts = call.data.split("_")
-        action = parts[0]   
-        amount = int(parts[1])  
+        action = parts   
+        amount = int(parts)  
 
         if action == "sm":
             mode_name, r_pocket, r_drive, r_school, r_holidays, r_health, r_auto, r_monuments, r_clothes, wife_cash, c7, r_cushion = calculate_cash_distribution(amount)
