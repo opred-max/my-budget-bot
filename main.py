@@ -207,22 +207,21 @@ def calculate_side_distribution(e2):
         auto = leftover * 0.10
         holidays = leftover * 0.05
 
-    # 3. Реализация классического округления до 10 рублей и гибридного триггера
-    # Математическое округление до десятков
-    round_drive = round(drive, -1)
-    round_school = round(school, -1)
-    round_holidays = round(holidays, -1)
-    round_auto = round(auto, -1)
-    round_clothes = round(clothes, -1)
+    # Вспомогательная функция умного округления кратно 100 рублям с триггером 50
+    def smart_round_100(val):
+        if val < 100.0:
+            return 100.0 if val > 50.0 else 0.0
+        else:
+            return float(round(val, -2))
 
-    # Применение триггера: > 50.0 -> 100.0 рублей, иначе -> 0.0 рублей
-    r_drive = 100.0 if round_drive > 50.0 else 0.0
-    r_school = 100.0 if round_school > 50.0 else 0.0
-    r_holidays = 100.0 if round_holidays > 50.0 else 0.0
-    r_auto = 100.0 if round_auto > 50.0 else 0.0
-    r_clothes = 100.0 if round_clothes > 50.0 else 0.0
+    # 3. Реализация двухэтапного округления кратно 100 рублям для всех 5 фондов
+    r_drive = smart_round_100(drive)
+    r_school = smart_round_100(school)
+    r_holidays = smart_round_100(holidays)
+    r_auto = smart_round_100(auto)
+    r_clothes = smart_round_100(clothes)
 
-    # Карман забирает ВЕСЬ чистый остаток от исходной грязной суммы e2
+    # Конверт «Карман» забирает ВЕСЬ чистый остаток от исходной грязной суммы e2
     r_pocket = max(0.0, e2 - (r_drive + r_school + r_holidays + r_auto + r_clothes))
     
     # Фиксация технической Кубышки
@@ -264,7 +263,7 @@ def send_welcome(message):
     welcome_text = (
         "👋 **Financial Engine v10.6 [MONOLITH CALIBRATED] активирован.**\n"
         "Ликвидированы дедлоки, исправлен учет налогов, обеспечена типобезопасность.\n"
-        "Ядро подработок переписано: классический round() и гибридный триггер 50 ₽ внедрены.\n\n"
+        "Ядро подработок переписано: умное двухэтапное округление кратно 100 ₽ с триггером 50 ₽ внедрено.\n\n"
         "Используй кнопки меню для расчетов 👇"
     )
     bot.send_message(message.chat.id, welcome_text, reply_markup=get_main_keyboard(), parse_mode='Markdown')
@@ -367,12 +366,12 @@ def show_monthly_report(message):
             # Накапливаем данные текущего месяца с условным прибавлением cushion (r) для основного дохода
             for r in rows:
                 net_sum = (
-                    float(r or 0) + float(r or 0) + float(r or 0) + 
-                    float(r or 0) + float(r or 0) + float(r or 0) + 
-                    float(r or 0) + float(r or 0)
+                    float(r[1] or 0) + float(r[2] or 0) + float(r[3] or 0) + 
+                    float(r[5] or 0) + float(r[6] or 0) + float(r[7] or 0) + 
+                    float(r[8] or 0) + float(r[9] or 0)
                 )
-                if r == "основной":
-                    net_sum += float(r or 0)
+                if r[0] == "основной":
+                    net_sum += float(r[4] or 0)
                     total_main += net_sum
                 else:
                     total_side += net_sum
@@ -383,12 +382,12 @@ def show_monthly_report(message):
             # Накапливаем данные прошлого месяца с условным прибавлением cushion (pr) для основного дохода
             for pr in prev_rows:
                 net_prev_sum = (
-                    float(pr or 0) + float(pr or 0) + float(pr or 0) + 
-                    float(pr or 0) + float(pr or 0) + float(pr or 0) + 
-                    float(pr or 0) + float(pr or 0)
+                    float(pr[1] or 0) + float(pr[2] or 0) + float(pr[3] or 0) + 
+                    float(pr[5] or 0) + float(pr[6] or 0) + float(pr[7] or 0) + 
+                    float(pr[8] or 0) + float(pr[9] or 0)
                 )
-                if pr == "основной":
-                    net_prev_sum += float(pr or 0)
+                if pr[0] == "основной":
+                    net_prev_sum += float(pr[4] or 0)
                 total_prev += net_prev_sum
                 
             conn.close()
@@ -422,8 +421,8 @@ def callback_inline(call):
             processed_callbacks.append(call.data)
 
         parts = call.data.split("_")
-        action = parts   
-        amount = int(parts)  
+        action = parts[0]   
+        amount = int(parts[1])  
 
         if action == "sm":
             mode_name, r_pocket, r_drive, r_school, r_holidays, r_health, r_auto, r_monuments, r_clothes, wife_cash, c7, r_cushion = calculate_cash_distribution(amount)
